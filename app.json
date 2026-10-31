@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "NFC Icebreaker",
+    "slug": "nfc-icebreaker",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "nfcicebreaker",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router"
+    ]
+  }
+}
+
+
