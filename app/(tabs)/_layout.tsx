@@ -1,7 +1,8 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
+import { Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Zap, Trophy, MapPin, Sliders, User } from 'lucide-react-native';
+import { Zap, BookUser, MapPin, Sliders, User } from 'lucide-react-native';
 import { Colors } from '@/constants/theme';
 
 export default function TabsLayout() {
@@ -18,6 +19,13 @@ export default function TabsLayout() {
           fontWeight: 'bold',
         },
         headerShadowVisible: false,
+        headerLeft: () => (
+          <Image
+            source={require('@/assets/SSLogo.png')}
+            style={{ width: 28, height: 28, borderRadius: 8, marginLeft: 16 }}
+            resizeMode="cover"
+          />
+        ),
         tabBarStyle: {
           backgroundColor: Colors.background.darkSteel,
           borderTopColor: Colors.border.steelGray,
@@ -52,9 +60,9 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="leaderboard"
         options={{
-          title: 'Connections',
-          headerTitle: 'Live Connections & Meter',
-          tabBarIcon: ({ color, size }) => <Trophy color={color} size={size} />,
+          title: 'Black Book',
+          headerTitle: 'Little Black Book',
+          tabBarIcon: ({ color, size }) => <BookUser color={color} size={size} />,
         }}
       />
       <Tabs.Screen

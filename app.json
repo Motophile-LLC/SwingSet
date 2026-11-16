@@ -1,22 +1,36 @@
 {
   "expo": {
-    "name": "NFC Icebreaker",
-    "slug": "nfc-icebreaker",
+    "name": "SwingSet",
+    "slug": "swingset",
     "version": "1.0.0",
     "orientation": "portrait",
-    "scheme": "nfcicebreaker",
+    "icon": "./assets/SSLogo.png",
+    "scheme": "swingset",
     "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/SSLogo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0D0D0D"
+    },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.motophile.swingset"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/SSLogo.png",
+        "backgroundColor": "#0D0D0D"
+      },
+      "package": "com.motophile.swingset",
+      "softwareKeyboardLayoutMode": "pan"
     },
     "web": {
       "bundler": "metro",
-      "output": "static"
+      "output": "static",
+      "favicon": "./assets/SSLogo.png"
     },
     "plugins": [
       "expo-router"
     ]
   }
 }
-
-

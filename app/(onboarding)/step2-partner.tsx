@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView } from 'react-native';
 import { useRouter } from 'expo-router';
-import { RefreshCw, ArrowRight, Users, Check, Shield } from 'lucide-react-native';
+import { RefreshCw, ArrowRight, Users, Check } from 'lucide-react-native';
 import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
 import { useUser, PlayStyleType } from '@/context/UserContext';
 
@@ -10,7 +10,7 @@ const PLAY_STYLES: PlayStyleType[] = ['Play Together as a Unit', 'Mingle Separat
 export default function Step2PartnerScreen() {
   const router = useRouter();
   const { profile, updatePartner, generatePartnerCode } = useUser();
-  const isCouple = profile.identity.whoYouAre === 'Couple';
+  const isCouple = profile.identity.whoYouAre === 'couple';
   const [enteredCode, setEnteredCode] = useState(() => profile.partner.enteredCode || '');
   const [playStyle, setPlayStyle] = useState<PlayStyleType>(() => profile.partner.playStyle || 'Play Together as a Unit');
   const [isLinked, setIsLinked] = useState(() => profile.partner.isLinked || false);
@@ -46,12 +46,12 @@ export default function Step2PartnerScreen() {
 
   return (
     <SafeAreaView style={s.container}>
-      <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
+      <ScrollView automaticallyAdjustKeyboardInsets={true} contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
         <View style={s.badge}><Text style={s.badgeText}>STEP 2 OF 3</Text></View>
         <View style={s.barBg}><View style={[s.barFill, { width: '66%' }]} /></View>
         <Text style={Typography.header}>Partner Link & Play Mode</Text>
         <Text style={[Typography.subtitle, { marginBottom: Spacing.md }]}>
-          {isCouple ? 'Connect profile with your partner for duo quests.' : 'Optional partner link or solo play.'}
+          {isCouple ? 'Connect profile with your partner for duo quests.' : 'Optional partner link or group play.'}
         </Text>
 
         {/* Share your random code card */}
@@ -135,7 +135,7 @@ export default function Step2PartnerScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background.black },
-  scroll: { padding: Spacing.md, paddingBottom: Spacing.xl },
+  scroll: { padding: Spacing.md, paddingBottom: 140 },
   badge: { alignSelf: 'flex-start', backgroundColor: Colors.background.darkSteel, borderWidth: 1, borderColor: Colors.border.steelGray, borderRadius: BorderRadius.sm, paddingHorizontal: 8, paddingVertical: 3, marginBottom: 6 },
   badgeText: { color: Colors.accent.copper, fontSize: 10, fontWeight: '800' },
   barBg: { height: 4, backgroundColor: Colors.border.steelGray, borderRadius: 2, marginBottom: Spacing.md },
