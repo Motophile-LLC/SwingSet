@@ -51,6 +51,7 @@ interface PhotoMadLibModuleProps {
   isHost: boolean;
   currentUserId: string | null;
   currentDisplayName: string;
+  onReelStart?: () => void;
 }
 
 export function PhotoMadLibModule({
@@ -58,6 +59,7 @@ export function PhotoMadLibModule({
   isHost,
   currentUserId,
   currentDisplayName,
+  onReelStart,
 }: PhotoMadLibModuleProps) {
   const [state, setState] = useState<PhotoLiveState>({
     storyId: PHOTO_MADLIB_STORIES[0].id,
@@ -404,9 +406,11 @@ export function PhotoMadLibModule({
 
             <TouchableOpacity
               style={[s.toggleBtn, state.screensaverActive && s.reelBtnActive]}
-              onPress={() =>
-                broadcastState({ ...state, screensaverActive: !state.screensaverActive })
-              }
+              onPress={() => {
+                const nextActive = !state.screensaverActive;
+                broadcastState({ ...state, screensaverActive: nextActive });
+                if (nextActive) onReelStart?.();
+              }}
             >
               <Play size={13} color="#FFF" />
               <Text style={[s.toggleBtnText, { color: '#FFF' }]}>
@@ -573,8 +577,10 @@ export function PhotoMadLibModule({
             <TouchableOpacity
               style={[s.toggleBtn, localReelPlaying && s.reelBtnActive]}
               onPress={() => {
+                const nextPlaying = !localReelPlaying;
                 setReelIndex(0);
-                setLocalReelPlaying((prev) => !prev);
+                setLocalReelPlaying(nextPlaying);
+                if (nextPlaying) onReelStart?.();
               }}
             >
               <Play size={13} color="#FFF" />

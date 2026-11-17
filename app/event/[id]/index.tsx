@@ -69,6 +69,8 @@ export default function EventDetailRoomScreen() {
   const [tapsDrawerOpen, setTapsDrawerOpen] = useState(false);
   const [roomMode, setRoomMode] = useState<'social' | 'trivia' | 'photos'>('social');
   const modeChannelRef = React.useRef<any>(null);
+  const hostScrollRef = React.useRef<ScrollView>(null);
+  const guestScrollRef = React.useRef<ScrollView>(null);
 
   useEffect(() => {
     let eng: CatalystGameEngine | null = null;
@@ -379,7 +381,7 @@ export default function EventDetailRoomScreen() {
   if (isHost) {
     return (
       <SafeAreaView style={s.container}>
-        <ScrollView automaticallyAdjustKeyboardInsets={true} contentContainerStyle={{paddingBottom: 160}} keyboardShouldPersistTaps="handled">
+        <ScrollView ref={hostScrollRef} automaticallyAdjustKeyboardInsets={true} contentContainerStyle={{paddingBottom: 160}} keyboardShouldPersistTaps="handled">
           {/* Share Invite Code & Door PIN Card */}
           <View style={s.hostShareCard}>
             <View style={s.shareRow}>
@@ -452,6 +454,7 @@ export default function EventDetailRoomScreen() {
                 isHost={true}
                 currentUserId={currentUserId}
                 currentDisplayName="Host"
+                onReelStart={() => hostScrollRef.current?.scrollTo({ y: 0, animated: true })}
               />
             </View>
           ) : (
@@ -515,7 +518,7 @@ export default function EventDetailRoomScreen() {
 
   return (
     <SafeAreaView style={s.container}>
-      <ScrollView automaticallyAdjustKeyboardInsets={true} contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={guestScrollRef} automaticallyAdjustKeyboardInsets={true} contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
         <View style={s.headerBox}>
           <Text style={s.headerEyebrow}>SWINGSET LIVE ROOM</Text>
           <Text style={s.headerTitle}>{eventData.title}</Text>
@@ -541,6 +544,7 @@ export default function EventDetailRoomScreen() {
             isHost={false}
             currentUserId={currentUserId}
             currentDisplayName={myAttendee?.display_name || 'Guest'}
+            onReelStart={() => guestScrollRef.current?.scrollTo({ y: 0, animated: true })}
           />
         ) : myAssignment && liveRound ? (
           <View style={s.liveCard}>
