@@ -31,6 +31,9 @@ import {
 } from '@/src/data/triviaBank';
 
 export type TriviaPlayMode = 'teams' | 'solo';
+export type TriviaGenreSelection = TriviaGenre | 'Random Mix';
+
+const GENRE_CHOICES: TriviaGenreSelection[] = ['Random Mix', ...TRIVIA_GENRES];
 
 interface TeamMemberPick {
   userId: string;
@@ -49,7 +52,7 @@ interface TriviaTeam {
 
 interface TriviaLiveState {
   playMode: TriviaPlayMode;
-  genre: TriviaGenre;
+  genre: TriviaGenreSelection;
   phase: 'lobby' | 'question' | 'revealed' | 'round_complete';
   activeQuestion: TriviaQuestion | null;
   questionIndex: number;
@@ -91,7 +94,7 @@ export function TriviaModule({
 }: TriviaModuleProps) {
   const [state, setState] = useState<TriviaLiveState>({
     playMode: 'teams',
-    genre: 'General Knowledge',
+    genre: 'Random Mix',
     phase: 'lobby',
     activeQuestion: null,
     questionIndex: 0,
@@ -215,12 +218,16 @@ export function TriviaModule({
   useEffect(() => {
     const loadActiveQuestions = async () => {
       try {
-        const { data, error } = await supabase
+        let query = supabase
           .from('trivia_questions')
           .select('id, genre, question, options, correct_index, points, is_custom')
-          .eq('status', 'active')
-          .eq('genre', state.genre)
-          .limit(500);
+          .eq('status', 'active');
+
+        if (state.genre !== 'Random Mix') {
+          query = query.eq('genre', state.genre);
+        }
+
+        const { data, error } = await query.limit(600);
         if (error || !data || data.length === 0) {
           setRemoteBank([]);
           return;
@@ -247,9 +254,16 @@ export function TriviaModule({
 
   const genreQuestions = useMemo(() => {
     const base = remoteBank.length > 0 ? remoteBank : CURATED_TRIVIA_BANK;
-    const all = [...customBank, ...base].filter((q) => q.genre === state.genre);
+    const all =
+      state.genre === 'Random Mix'
+        ? [...customBank, ...base]
+        : [...customBank, ...base].filter((q) => q.genre === state.genre);
     const unused = all.filter((q) => !usedQuestionIds.includes(q.id));
-    return unused.length > 0 ? unused : all;
+    const pool = unused.length > 0 ? unused : all;
+    if (state.genre === 'Random Mix') {
+      return [...pool].sort(() => Math.random() - 0.5);
+    }
+    return pool;
   }, [customBank, remoteBank, state.genre, usedQuestionIds]);
 
   const myTeam = useMemo(
@@ -410,7 +424,7 @@ export function TriviaModule({
     if (!customQ.trim() || customOpts.some((o) => !o.trim())) return;
     const newQ: TriviaQuestion = {
       id: `custom_${Date.now()}`,
-      genre: state.genre,
+      genre: state.genre === 'Random Mix' ? 'General Knowledge' : state.genre,
       question: customQ.trim(),
       options: [customOpts[0].trim(), customOpts[1].trim(), customOpts[2].trim(), customOpts[3].trim()],
       correctIndex: customCorrect,
@@ -578,9 +592,9 @@ export function TriviaModule({
             </TouchableOpacity>
           </View>
 
-          <Text style={s.subLabel}>Select Genre ({genreQuestions.length} Qs)</Text>
+          <Text style={s.subLabel}>Round Topic / Genre ({genreQuestions.length} unused Qs)</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.genreRow}>
-            {TRIVIA_GENRES.map((g) => {
+            {GENRE_CHOICES.map((g) => {
               const active = state.genre === g;
               return (
                 <TouchableOpacity
