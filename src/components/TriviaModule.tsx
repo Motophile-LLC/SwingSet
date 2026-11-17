@@ -13,6 +13,7 @@ import {
   User,
   Crown,
   CheckCircle2,
+  Clock,
   Play,
   Eye,
   PlusCircle,
@@ -51,6 +52,8 @@ interface TriviaLiveState {
   phase: 'lobby' | 'question' | 'revealed';
   activeQuestion: TriviaQuestion | null;
   questionIndex: number;
+  questionDurationSec: number;
+  questionEndsAt: number | null;
   teams: TriviaTeam[];
   soloScores: Record<string, { name: string; score: number }>;
   // Teammate suggested picks keyed by teamId -> userId -> pick
@@ -82,6 +85,8 @@ export function TriviaModule({
     phase: 'lobby',
     activeQuestion: null,
     questionIndex: 0,
+    questionDurationSec: 30,
+    questionEndsAt: null,
     teams: [],
     soloScores: {},
     teamSuggestions: {},
@@ -95,8 +100,26 @@ export function TriviaModule({
   const [customQ, setCustomQ] = useState('');
   const [customOpts, setCustomOpts] = useState<[string, string, string, string]>(['', '', '', '']);
   const [customCorrect, setCustomCorrect] = useState<0 | 1 | 2 | 3>(0);
+  const [secondsLeft, setSecondsLeft] = useState<number>(30);
 
   const channelRef = useRef<any>(null);
+
+  // Synced countdown computed from broadcast questionEndsAt timestamp
+  useEffect(() => {
+    if (state.phase !== 'question' || !state.questionEndsAt) {
+      setSecondsLeft(state.questionDurationSec || 30);
+      return;
+    }
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((state.questionEndsAt! - Date.now()) / 1000));
+      setSecondsLeft(remaining);
+    };
+    tick();
+    const timer = setInterval(tick, 250);
+    return () => clearInterval(timer);
+  }, [state.phase, state.questionEndsAt, state.questionDurationSec]);
+
+  const isTimeUp = state.phase === 'question' && Boolean(state.questionEndsAt) && secondsLeft <= 0;
 
   const broadcastState = (next: TriviaLiveState) => {
     setState(next);
@@ -213,11 +236,13 @@ export function TriviaModule({
   const handleStartQuestion = (indexOverride?: number) => {
     const idx = indexOverride !== undefined ? indexOverride : state.questionIndex;
     const q = genreQuestions[idx % Math.max(genreQuestions.length, 1)] || CURATED_TRIVIA_BANK[0];
+    const dur = state.questionDurationSec || 30;
     broadcastState({
       ...state,
       phase: 'question',
       activeQuestion: q,
       questionIndex: idx,
+      questionEndsAt: Date.now() + dur * 1000,
       teamSuggestions: {},
       lockedAnswers: {},
     });
@@ -252,6 +277,7 @@ export function TriviaModule({
     broadcastState({
       ...state,
       phase: 'revealed',
+      questionEndsAt: null,
       teams: nextTeams,
       soloScores: nextSolo,
     });
@@ -268,6 +294,7 @@ export function TriviaModule({
       phase: 'lobby',
       activeQuestion: null,
       questionIndex: 0,
+      questionEndsAt: null,
       teams: state.teams.map((t) => ({ ...t, score: 0 })),
       soloScores: {},
       teamSuggestions: {},
@@ -294,7 +321,7 @@ export function TriviaModule({
 
   // Player / Captain Answer actions
   const handleSuggestAnswer = (optionIndex: number) => {
-    if (!currentUserId || state.phase !== 'question') return;
+    if (!currentUserId || state.phase !== 'question' || isTimeUp) return;
 
     if (state.playMode === 'solo') {
       broadcastState({
@@ -326,7 +353,7 @@ export function TriviaModule({
   };
 
   const handleCaptainLockAnswer = (optionIndex: number) => {
-    if (!myTeam || !isCaptain || state.phase !== 'question') return;
+    if (!myTeam || !isCaptain || state.phase !== 'question' || isTimeUp) return;
     broadcastState({
       ...state,
       lockedAnswers: {
@@ -436,6 +463,25 @@ export function TriviaModule({
               );
             })}
           </ScrollView>
+
+          <Text style={s.subLabel}>Question Timer</Text>
+          <View style={s.rowGap}>
+            {[15, 30, 45, 60].map((sec) => {
+              const active = state.questionDurationSec === sec;
+              return (
+                <TouchableOpacity
+                  key={sec}
+                  style={[s.timerChoiceBtn, active && s.timerChoiceBtnActive]}
+                  onPress={() => broadcastState({ ...state, questionDurationSec: sec })}
+                >
+                  <Clock size={12} color={active ? '#FFF' : Colors.text.secondary} />
+                  <Text style={[s.timerChoiceText, active && s.timerChoiceTextActive]}>
+                    {sec}s
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
           <View style={s.rowGap}>
             {state.phase === 'lobby' ? (
@@ -575,9 +621,29 @@ export function TriviaModule({
             <Text style={s.qMeta}>
               {state.activeQuestion.genre.toUpperCase()} • {state.activeQuestion.points} PTS
             </Text>
-            <Text style={s.qStatus}>
-              {state.phase === 'revealed' ? 'ANSWER REVEALED' : 'LIVE QUESTION'}
-            </Text>
+            {state.phase === 'question' ? (
+              <View
+                style={[
+                  s.timerPill,
+                  secondsLeft <= 5 && s.timerPillUrgent,
+                ]}
+              >
+                <Clock
+                  size={12}
+                  color={secondsLeft <= 5 ? Colors.accent.crimson : Colors.text.copper}
+                />
+                <Text
+                  style={[
+                    s.timerPillText,
+                    secondsLeft <= 5 && s.timerPillTextUrgent,
+                  ]}
+                >
+                  {isTimeUp ? "TIME'S UP!" : `${secondsLeft}s`}
+                </Text>
+              </View>
+            ) : (
+              <Text style={s.qStatus}>ANSWER REVEALED</Text>
+            )}
           </View>
 
           <Text style={s.qText}>{state.activeQuestion.question}</Text>
@@ -596,7 +662,7 @@ export function TriviaModule({
             return (
               <TouchableOpacity
                 key={idx}
-                disabled={state.phase !== 'question'}
+                disabled={state.phase !== 'question' || isTimeUp}
                 style={[
                   s.optionBtn,
                   myPick && s.optionBtnSelected,
@@ -643,7 +709,8 @@ export function TriviaModule({
                   return (
                     <TouchableOpacity
                       key={letter}
-                      style={[s.lockBtn, locked && s.lockBtnActive]}
+                      disabled={isTimeUp}
+                      style={[s.lockBtn, locked && s.lockBtnActive, isTimeUp && { opacity: 0.5 }]}
                       onPress={() => handleCaptainLockAnswer(idx)}
                     >
                       <Text style={[s.lockBtnText, locked && s.lockBtnTextActive]}>
@@ -961,4 +1028,39 @@ const s = StyleSheet.create({
   leaderName: { fontSize: 14, fontWeight: '700', color: Colors.text.primary },
   leaderSub: { fontSize: 11, color: Colors.text.muted },
   leaderScore: { fontSize: 14, fontWeight: '800', color: Colors.accent.emerald },
+  timerChoiceBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 7,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.background.card,
+    borderWidth: 1,
+    borderColor: Colors.border.steelGray,
+  },
+  timerChoiceBtnActive: {
+    backgroundColor: Colors.accent.copper,
+    borderColor: Colors.accent.copper,
+  },
+  timerChoiceText: { fontSize: 12, fontWeight: '700', color: Colors.text.secondary },
+  timerChoiceTextActive: { color: '#FFFFFF' },
+  timerPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.full,
+    backgroundColor: 'rgba(90, 107, 255, 0.16)',
+    borderWidth: 1,
+    borderColor: Colors.accent.copper,
+  },
+  timerPillUrgent: {
+    backgroundColor: 'rgba(255, 92, 122, 0.16)',
+    borderColor: Colors.accent.crimson,
+  },
+  timerPillText: { fontSize: 11, fontWeight: '800', color: Colors.text.copper },
+  timerPillTextUrgent: { color: Colors.accent.crimson },
 });
