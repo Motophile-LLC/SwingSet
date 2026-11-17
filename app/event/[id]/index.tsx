@@ -7,6 +7,7 @@ import {
   Plus,
   Share2,
   Sparkles,
+  Trash2,
   Trophy,
   Users,
   Zap,
@@ -67,6 +68,7 @@ export default function EventDetailRoomScreen() {
   const [completedMissions, setCompletedMissions] = useState<number[]>([]);
   const [tapsDrawerOpen, setTapsDrawerOpen] = useState(false);
   const [roomMode, setRoomMode] = useState<'social' | 'trivia' | 'photos'>('social');
+  const modeChannelRef = React.useRef<any>(null);
 
   useEffect(() => {
     let eng: CatalystGameEngine | null = null;
@@ -156,7 +158,12 @@ export default function EventDetailRoomScreen() {
             if (freshBlks) setBlocks(freshBlks);
           }
         )
+        .on('broadcast', { event: 'room_mode' }, ({ payload }: { payload: { mode: 'social' | 'trivia' | 'photos' } }) => {
+          if (payload?.mode) setRoomMode(payload.mode);
+        })
         .subscribe();
+
+      modeChannelRef.current = dbChannel;
 
       setLoading(false);
     };
@@ -168,6 +175,38 @@ export default function EventDetailRoomScreen() {
       if (dbChannel) supabase.removeChannel(dbChannel);
     };
   }, [eventId]);
+
+  const handleHostChangeMode = (nextMode: 'social' | 'trivia' | 'photos') => {
+    setRoomMode(nextMode);
+    modeChannelRef.current?.send({
+      type: 'broadcast',
+      event: 'room_mode',
+      payload: { mode: nextMode },
+    });
+  };
+
+  const handleDeleteEvent = () => {
+    if (!eventData) return;
+    Alert.alert(
+      'Delete Event?',
+      `Permanently delete "${eventData.title}"? This removes the event, timeline, and check-ins.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            const { error } = await supabase.from('events').delete().eq('id', eventId);
+            if (error) {
+              Alert.alert('Delete Failed', error.message);
+              return;
+            }
+            router.replace('/(tabs)/host' as any);
+          },
+        },
+      ]
+    );
+  };
 
   const handleShareInvite = async () => {
     if (!eventData) return;
@@ -336,14 +375,17 @@ export default function EventDetailRoomScreen() {
                 <Share2 size={16} color="#FFF" />
                 <Text style={s.shareBtnText}>Share</Text>
               </TouchableOpacity>
+              <TouchableOpacity style={s.deleteEventBtn} onPress={handleDeleteEvent}>
+                <Trash2 size={16} color={Colors.accent.crimson} />
+              </TouchableOpacity>
             </View>
           </View>
 
-          {/* Mode Switcher: Social Icebreakers vs. Trivia Arena */}
+          {/* Mode Switcher: Host controls active mode for the room */}
           <View style={s.roomModeBar}>
             <TouchableOpacity
               style={[s.roomModeBtn, roomMode === 'social' && s.roomModeBtnActive]}
-              onPress={() => setRoomMode('social')}
+              onPress={() => handleHostChangeMode('social')}
             >
               <Zap size={14} color={roomMode === 'social' ? '#FFF' : Colors.text.secondary} />
               <Text style={[s.roomModeText, roomMode === 'social' && s.roomModeTextActive]}>
@@ -352,7 +394,7 @@ export default function EventDetailRoomScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               style={[s.roomModeBtn, roomMode === 'trivia' && s.roomModeBtnActive]}
-              onPress={() => setRoomMode('trivia')}
+              onPress={() => handleHostChangeMode('trivia')}
             >
               <Trophy size={14} color={roomMode === 'trivia' ? '#FFF' : Colors.text.secondary} />
               <Text style={[s.roomModeText, roomMode === 'trivia' && s.roomModeTextActive]}>
@@ -361,7 +403,7 @@ export default function EventDetailRoomScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               style={[s.roomModeBtn, roomMode === 'photos' && s.roomModeBtnActive]}
-              onPress={() => setRoomMode('photos')}
+              onPress={() => handleHostChangeMode('photos')}
             >
               <Camera size={14} color={roomMode === 'photos' ? '#FFF' : Colors.text.secondary} />
               <Text style={[s.roomModeText, roomMode === 'photos' && s.roomModeTextActive]}>
@@ -460,36 +502,6 @@ export default function EventDetailRoomScreen() {
           <Text style={s.headerSub}>
             Invite: {eventData.invite_code} • Your Tap Code: {myAttendee?.short_code_3 || '---'}
           </Text>
-        </View>
-
-        <View style={s.roomModeBar}>
-          <TouchableOpacity
-            style={[s.roomModeBtn, roomMode === 'social' && s.roomModeBtnActive]}
-            onPress={() => setRoomMode('social')}
-          >
-            <Zap size={14} color={roomMode === 'social' ? '#FFF' : Colors.text.secondary} />
-            <Text style={[s.roomModeText, roomMode === 'social' && s.roomModeTextActive]}>
-              Social
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[s.roomModeBtn, roomMode === 'trivia' && s.roomModeBtnActive]}
-            onPress={() => setRoomMode('trivia')}
-          >
-            <Trophy size={14} color={roomMode === 'trivia' ? '#FFF' : Colors.text.secondary} />
-            <Text style={[s.roomModeText, roomMode === 'trivia' && s.roomModeTextActive]}>
-              Trivia
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[s.roomModeBtn, roomMode === 'photos' && s.roomModeBtnActive]}
-            onPress={() => setRoomMode('photos')}
-          >
-            <Camera size={14} color={roomMode === 'photos' ? '#FFF' : Colors.text.secondary} />
-            <Text style={[s.roomModeText, roomMode === 'photos' && s.roomModeTextActive]}>
-              Photo Story
-            </Text>
-          </TouchableOpacity>
         </View>
 
         {roomMode === 'trivia' ? (
@@ -839,5 +851,12 @@ const s = StyleSheet.create({
     color: Colors.text.secondary,
     fontSize: 12,
     lineHeight: 17,
+  },
+  deleteEventBtn: {
+    padding: 10,
+    borderRadius: BorderRadius.md,
+    backgroundColor: 'rgba(255, 92, 122, 0.14)',
+    borderWidth: 1,
+    borderColor: Colors.accent.crimson,
   },
 });

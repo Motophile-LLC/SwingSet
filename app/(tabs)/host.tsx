@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { CalendarPlus, KeyRound, Radio, Sparkles } from 'lucide-react-native';
+import { CalendarPlus, KeyRound, Radio, Sparkles, Trash2 } from 'lucide-react-native';
 import { BorderRadius, Colors, Spacing } from '@/constants/theme';
 import { supabase } from '@/src/lib/supabase';
 
@@ -47,6 +47,28 @@ export default function HostDeckScreen() {
       loadHostedEvents();
     }, [])
   );
+
+  const handleDeleteEvent = (ev: any) => {
+    Alert.alert(
+      'Delete Event?',
+      `Permanently delete "${ev.title}"? This removes the event, timeline, and check-ins.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            const { error } = await supabase.from('events').delete().eq('id', ev.id);
+            if (error) {
+              Alert.alert('Delete Failed', error.message);
+              return;
+            }
+            setMyEvents((prev) => prev.filter((item) => item.id !== ev.id));
+          },
+        },
+      ]
+    );
+  };
 
   const handleJoinByInvite = async () => {
     const code = joinInviteCode.trim().toUpperCase();
@@ -110,6 +132,16 @@ export default function HostDeckScreen() {
                   </Text>
                 </View>
                 <Text style={s.launchText}>Open Studio →</Text>
+                <Pressable
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    handleDeleteEvent(ev);
+                  }}
+                  style={s.deleteIconBtn}
+                  hitSlop={8}
+                >
+                  <Trash2 size={16} color={Colors.accent.crimson} />
+                </Pressable>
               </Pressable>
             ))
           )}
@@ -196,6 +228,12 @@ const s = StyleSheet.create({
   eventMeta: { fontSize: 12, color: Colors.text.secondary, marginTop: 3 },
   codeHighlight: { color: Colors.accent.copper, fontWeight: '800' },
   launchText: { color: Colors.accent.emerald, fontWeight: '800', fontSize: 13 },
+  deleteIconBtn: {
+    padding: 6,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: 'rgba(255, 92, 122, 0.12)',
+    marginLeft: 6,
+  },
   card: {
     backgroundColor: Colors.background.darkSteel,
     borderWidth: 1,
