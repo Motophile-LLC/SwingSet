@@ -69,8 +69,8 @@ export default function EventDetailRoomScreen() {
   const [tapsDrawerOpen, setTapsDrawerOpen] = useState(false);
   const [roomMode, setRoomMode] = useState<'social' | 'trivia' | 'photos'>('social');
   const modeChannelRef = React.useRef<any>(null);
-  const hostScrollRef = React.useRef<ScrollView>(null);
-  const guestScrollRef = React.useRef<ScrollView>(null);
+  const hostScrollRef = React.useRef<any>(null);
+  const guestScrollRef = React.useRef<any>(null);
 
   useEffect(() => {
     let eng: CatalystGameEngine | null = null;
