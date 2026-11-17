@@ -121,6 +121,13 @@ export function TriviaModule({
 
   const isTimeUp = state.phase === 'question' && Boolean(state.questionEndsAt) && secondsLeft <= 0;
 
+  // Auto-reveal & award points when timer hits 0s (host triggers broadcast once)
+  useEffect(() => {
+    if (isHost && isTimeUp && state.phase === 'question' && state.activeQuestion) {
+      handleRevealAndScore();
+    }
+  }, [isHost, isTimeUp, state.phase, state.activeQuestion]);
+
   const broadcastState = (next: TriviaLiveState) => {
     setState(next);
     channelRef.current?.send({
@@ -649,8 +656,9 @@ export function TriviaModule({
           <Text style={s.qText}>{state.activeQuestion.question}</Text>
 
           {state.activeQuestion.options.map((opt, idx) => {
+            const showResult = state.phase === 'revealed' || isTimeUp;
             const isCorrect =
-              state.phase === 'revealed' && state.activeQuestion?.correctIndex === idx;
+              showResult && state.activeQuestion?.correctIndex === idx;
             const myPick =
               state.playMode === 'solo'
                 ? mySoloLocked?.optionIndex === idx
@@ -679,6 +687,44 @@ export function TriviaModule({
               </TouchableOpacity>
             );
           })}
+
+          {/* Result Feedback Banner (Right / Wrong / Points Earned) */}
+          {(state.phase === 'revealed' || isTimeUp) && state.activeQuestion ? (() => {
+            const correctIdx = state.activeQuestion.correctIndex;
+            const pts = state.activeQuestion.points;
+            const correctLetter = OPTION_LETTERS[correctIdx];
+            const correctOptText = state.activeQuestion.options[correctIdx];
+            const submitted =
+              state.playMode === 'teams' ? myTeamLocked : mySoloLocked;
+            const gotItRight = Boolean(submitted && submitted.optionIndex === correctIdx);
+
+            return (
+              <View
+                style={[
+                  s.resultBanner,
+                  gotItRight ? s.resultBannerWin : s.resultBannerLoss,
+                ]}
+              >
+                <Text
+                  style={[
+                    s.resultBannerTitle,
+                    { color: gotItRight ? Colors.accent.emerald : Colors.accent.crimson },
+                  ]}
+                >
+                  {gotItRight
+                    ? `CORRECT! +${pts} pts${state.playMode === 'teams' && myTeam ? ` for ${myTeam.name}` : ''}`
+                    : submitted
+                    ? `WRONG! (+0 pts)`
+                    : `TIME'S UP! No answer locked (+0 pts)`}
+                </Text>
+                {!gotItRight ? (
+                  <Text style={s.resultBannerSub}>
+                    Correct Answer: {correctLetter}. {correctOptText}
+                  </Text>
+                ) : null}
+              </View>
+            );
+          })() : null}
 
           {/* Captain Consensus Panel */}
           {state.playMode === 'teams' && myTeam && isCaptain && state.phase === 'question' ? (
@@ -1063,4 +1109,27 @@ const s = StyleSheet.create({
   },
   timerPillText: { fontSize: 11, fontWeight: '800', color: Colors.text.copper },
   timerPillTextUrgent: { color: Colors.accent.crimson },
+  resultBanner: {
+    borderRadius: BorderRadius.sm,
+    padding: 12,
+    borderWidth: 1,
+    gap: 4,
+  },
+  resultBannerWin: {
+    backgroundColor: 'rgba(52, 211, 153, 0.14)',
+    borderColor: Colors.accent.emerald,
+  },
+  resultBannerLoss: {
+    backgroundColor: 'rgba(255, 92, 122, 0.14)',
+    borderColor: Colors.accent.crimson,
+  },
+  resultBannerTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  resultBannerSub: {
+    fontSize: 12,
+    color: Colors.text.primary,
+    fontWeight: '600',
+  },
 });
