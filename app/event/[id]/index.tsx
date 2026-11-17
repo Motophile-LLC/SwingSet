@@ -100,7 +100,9 @@ export default function EventDetailRoomScreen() {
         return;
       }
       setEventData(ev);
-      if (ev.category === 'Trivia Night') {
+      if (ev.active_mode === 'social' || ev.active_mode === 'trivia' || ev.active_mode === 'photos') {
+        setRoomMode(ev.active_mode);
+      } else if (ev.category === 'Trivia Night') {
         setRoomMode('trivia');
       }
       const hostFlag = ev.owner_id === uid;
@@ -158,6 +160,16 @@ export default function EventDetailRoomScreen() {
             if (freshBlks) setBlocks(freshBlks);
           }
         )
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'events', filter: `id=eq.${eventId}` },
+          (payload: any) => {
+            const nextMode = payload?.new?.active_mode;
+            if (nextMode === 'social' || nextMode === 'trivia' || nextMode === 'photos') {
+              setRoomMode(nextMode);
+            }
+          }
+        )
         .on('broadcast', { event: 'room_mode' }, ({ payload }: { payload: { mode: 'social' | 'trivia' | 'photos' } }) => {
           if (payload?.mode) setRoomMode(payload.mode);
         })
@@ -176,13 +188,21 @@ export default function EventDetailRoomScreen() {
     };
   }, [eventId]);
 
-  const handleHostChangeMode = (nextMode: 'social' | 'trivia' | 'photos') => {
+  const handleHostChangeMode = async (nextMode: 'social' | 'trivia' | 'photos') => {
     setRoomMode(nextMode);
     modeChannelRef.current?.send({
       type: 'broadcast',
       event: 'room_mode',
       payload: { mode: nextMode },
     });
+    try {
+      await supabase
+        .from('events')
+        .update({ active_mode: nextMode })
+        .eq('id', eventId);
+    } catch {
+      // Ignore if migration 010 not applied yet
+    }
   };
 
   const handleDeleteEvent = () => {
