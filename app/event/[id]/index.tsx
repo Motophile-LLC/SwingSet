@@ -2,14 +2,35 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, SafeAreaView, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View, KeyboardAvoidingView, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
+  AlertTriangle,
+  Atom,
+  Briefcase,
   Camera,
   CheckCircle2,
+  Compass,
+  Cpu,
+  Disc,
+  Dna,
+  Droplet,
+  Flame,
+  FlaskConical,
+  HeartPulse,
+  Key,
+  Lock,
+  Mic,
+  Music,
   Plus,
+  Radio,
   Share2,
+  Shield,
+  Sliders,
   Sparkles,
+  Speaker,
+  Sun,
   Trash2,
   Trophy,
   Users,
+  Wine,
   Zap,
 } from 'lucide-react-native';
 import { BorderRadius, Colors, Spacing } from '@/constants/theme';
@@ -43,6 +64,36 @@ const ARRIVAL_MISSIONS = [
   'Find another couple or guest visiting from a different neighborhood.',
   'Compliment someone on their outfit and trade first names.',
 ];
+
+function renderGameTokenIcon(iconName: string, size: number, color: string) {
+  switch (iconName) {
+    case 'flame': return <Flame size={size} color={color} />;
+    case 'droplet': return <Droplet size={size} color={color} />;
+    case 'zap': return <Zap size={size} color={color} />;
+    case 'shield': return <Shield size={size} color={color} />;
+    case 'cpu': return <Cpu size={size} color={color} />;
+    case 'biohazard': return <AlertTriangle size={size} color={color} />;
+    case 'dna': return <Dna size={size} color={color} />;
+    case 'flask-conical': return <FlaskConical size={size} color={color} />;
+    case 'atom': return <Atom size={size} color={color} />;
+    case 'heart-pulse': return <HeartPulse size={size} color={color} />;
+    case 'mic': return <Mic size={size} color={color} />;
+    case 'speaker': return <Speaker size={size} color={color} />;
+    case 'disc': return <Disc size={size} color={color} />;
+    case 'sliders': return <Sliders size={size} color={color} />;
+    case 'music': return <Music size={size} color={color} />;
+    case 'briefcase': return <Briefcase size={size} color={color} />;
+    case 'key': return <Key size={size} color={color} />;
+    case 'lock': return <Lock size={size} color={color} />;
+    case 'compass': return <Compass size={size} color={color} />;
+    case 'radio': return <Radio size={size} color={color} />;
+    case 'wine': return <Wine size={size} color={color} />;
+    case 'glass-water': return <Wine size={size} color={color} />;
+    case 'sun': return <Sun size={size} color={color} />;
+    case 'citrus': return <Sun size={size} color={color} />;
+    default: return <Sparkles size={size} color={color} />;
+  }
+}
 
 export default function EventDetailRoomScreen() {
   const router = useRouter();
@@ -516,8 +567,19 @@ export default function EventDetailRoomScreen() {
     );
   }
 
+  const isSocialRoundFullScreen = Boolean(
+    roomMode === 'social' && myAssignment && liveRound && liveRound.phase === 'scramble'
+  );
+
   return (
-    <SafeAreaView style={s.container}>
+    <SafeAreaView
+      style={[
+        s.container,
+        isSocialRoundFullScreen && myAssignment?.role_color_hex
+          ? { backgroundColor: myAssignment.role_color_hex }
+          : null,
+      ]}
+    >
       <ScrollView ref={guestScrollRef} automaticallyAdjustKeyboardInsets={true} contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
         <View style={s.headerBox}>
           <Text style={s.headerEyebrow}>SWINGSET LIVE ROOM</Text>
@@ -547,15 +609,33 @@ export default function EventDetailRoomScreen() {
             onReelStart={() => guestScrollRef.current?.scrollTo({ y: 0, animated: true })}
           />
         ) : myAssignment && liveRound ? (
-          <View style={s.liveCard}>
+          <View style={[s.liveCard, { borderColor: 'rgba(255,255,255,0.35)', backgroundColor: 'rgba(10,10,16,0.78)' }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Zap size={16} color={Colors.accent.copper} />
-              <Text style={s.liveBadge}>
+              <Zap size={16} color="#FFFFFF" />
+              <Text style={[s.liveBadge, { color: '#FFFFFF' }]}>
                 LIVE ROUND: {GAME_SKINS[liveRound.skin_id]?.name.toUpperCase()} • {liveRound.phase.toUpperCase()}
               </Text>
             </View>
-            <Text style={s.roleText}>Your Role: {myAssignment.role_label}</Text>
-            <Text style={s.targetText}>Find & Tap: {myAssignment.target_label}</Text>
+
+            {/* Large Visual Role Badge */}
+            <View style={s.visualRoleWrap}>
+              <View style={[s.visualIconCircle, { backgroundColor: myAssignment.role_color_hex || Colors.accent.copper }]}>
+                {renderGameTokenIcon(myAssignment.role_icon, 52, '#FFFFFF')}
+              </View>
+              <Text style={s.visualRoleLabel}>YOU HAVE</Text>
+              <Text style={s.roleText}>{myAssignment.role_label}</Text>
+            </View>
+
+            {/* Simple Find: [Icon] [Target] */}
+            <View style={s.findTargetBox}>
+              <View style={s.findTargetIconCircle}>
+                {renderGameTokenIcon(myAssignment.target_icon, 32, '#FFFFFF')}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.findLabel}>FIND & TAP</Text>
+                <Text style={s.targetText}>{myAssignment.target_label}</Text>
+              </View>
+            </View>
 
             <View style={s.codeBox}>
               <Text style={s.codeLabel}>YOUR 3-CHAR TAP CODE</Text>
@@ -882,5 +962,49 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(255, 92, 122, 0.14)',
     borderWidth: 1,
     borderColor: Colors.accent.crimson,
+  },
+  visualRoleWrap: {
+    alignItems: 'center',
+    paddingVertical: 10,
+    gap: 6,
+  },
+  visualIconCircle: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+  },
+  visualRoleLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: Colors.text.secondary,
+    letterSpacing: 1,
+  },
+  findTargetBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    borderRadius: BorderRadius.md,
+    padding: 12,
+  },
+  findTargetIconCircle: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: Colors.accent.copper,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  findLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: Colors.text.copper,
+    letterSpacing: 0.8,
   },
 });

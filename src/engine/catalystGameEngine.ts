@@ -145,9 +145,12 @@ export class CatalystGameEngine {
     // Shuffle active players
     const shuffled = [...activePlayers].sort(() => Math.random() - 0.5);
 
-    // Crowd scaling: 1 Catalyst per 10-12 players (minimum 1 if at least 2 players)
+    // Crowd scaling:
+    // - 2 players: 0 Catalysts, 1 guaranteed complementary Hunter pair so they match each other
+    // - 3 players: 1 Catalyst + 1 complementary Hunter pair
+    // - 4+ players: 1 Catalyst per ~8 players + complete complementary Hunter pairs
     const catalystCount =
-      shuffled.length < 2 ? 0 : Math.max(1, Math.floor(shuffled.length / 10));
+      shuffled.length <= 2 ? 0 : shuffled.length === 3 ? 1 : Math.max(1, Math.floor(shuffled.length / 8));
 
     const usedCodes = new Set<string>();
     const uniqueCode = () => {
@@ -164,44 +167,55 @@ export class CatalystGameEngine {
       (Math.floor(Math.random() * (maxSec - minSec + 1)) + minSec) * 1000;
 
     const assignments: Record<string, PlayerRoundAssignment> = {};
+    const hunters = shuffled.slice(catalystCount);
+    const assignedHunterTokens: typeof skin.hunterTokens = [];
 
-    shuffled.forEach((player, idx) => {
-      const isCatalyst = idx < catalystCount;
-      if (isCatalyst) {
-        const targetToken =
-          skin.hunterTokens[Math.floor(Math.random() * skin.hunterTokens.length)];
-        assignments[player.id] = {
-          attendee_id: player.id,
-          ephemeral_ble_id: generateEphemeralBleId(),
-          short_code_3: uniqueCode(),
-          is_catalyst: true,
-          role_label: skin.catalystRole.label,
-          role_color_hex: skin.catalystRole.colorHex,
-          role_icon: skin.catalystRole.icon,
-          target_label: targetToken.label,
-          target_icon: targetToken.icon,
-          last_catalyst_received_at: now,
-          paired_with_ids: [],
-        };
-      } else {
-        const assignedToken = skin.hunterTokens[idx % skin.hunterTokens.length];
-        const matchToken =
-          skin.hunterTokens.find((t) => t.id === assignedToken.matchesWithId) ||
-          skin.hunterTokens[0];
+    // Assign hunters in guaranteed complementary pairs (0<->1, 2<->3, ...)
+    hunters.forEach((player, hIdx) => {
+      const pairGroup = Math.floor(hIdx / 2) % Math.max(1, Math.floor(skin.hunterTokens.length / 2));
+      const isSecondInPair = hIdx % 2 === 1;
+      const baseToken = skin.hunterTokens[pairGroup * 2] || skin.hunterTokens[0];
+      const partnerToken =
+        skin.hunterTokens.find((t) => t.id === baseToken.matchesWithId) ||
+        skin.hunterTokens[pairGroup * 2 + 1] ||
+        skin.hunterTokens[1] ||
+        baseToken;
 
-        assignments[player.id] = {
-          attendee_id: player.id,
-          ephemeral_ble_id: generateEphemeralBleId(),
-          short_code_3: uniqueCode(),
-          is_catalyst: false,
-          role_label: assignedToken.label,
-          role_color_hex: assignedToken.colorHex,
-          role_icon: assignedToken.icon,
-          target_label: matchToken.label,
-          target_icon: matchToken.icon,
-          paired_with_ids: [],
-        };
-      }
+      const assignedToken = isSecondInPair ? partnerToken : baseToken;
+      const matchToken = isSecondInPair ? baseToken : partnerToken;
+      assignedHunterTokens.push(assignedToken);
+
+      assignments[player.id] = {
+        attendee_id: player.id,
+        ephemeral_ble_id: generateEphemeralBleId(),
+        short_code_3: uniqueCode(),
+        is_catalyst: false,
+        role_label: assignedToken.label,
+        role_color_hex: assignedToken.colorHex,
+        role_icon: assignedToken.icon,
+        target_label: matchToken.label,
+        target_icon: matchToken.icon,
+        paired_with_ids: [],
+      };
+    });
+
+    // Assign Catalysts targeting only tokens actually held by hunters in this round
+    const catalystPool = assignedHunterTokens.length > 0 ? assignedHunterTokens : skin.hunterTokens;
+    shuffled.slice(0, catalystCount).forEach((player, cIdx) => {
+      const targetToken = catalystPool[cIdx % catalystPool.length];
+      assignments[player.id] = {
+        attendee_id: player.id,
+        ephemeral_ble_id: generateEphemeralBleId(),
+        short_code_3: uniqueCode(),
+        is_catalyst: true,
+        role_label: skin.catalystRole.label,
+        role_color_hex: skin.catalystRole.colorHex,
+        role_icon: skin.catalystRole.icon,
+        target_label: targetToken.label,
+        target_icon: targetToken.icon,
+        last_catalyst_received_at: now,
+        paired_with_ids: [],
+      };
     });
 
     // Non-targeted attendees get a clean Lounge / Spectator card
