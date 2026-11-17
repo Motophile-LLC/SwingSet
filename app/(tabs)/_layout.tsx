@@ -45,7 +45,7 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: 'Play',
-          headerTitle: 'Mingling Arena',
+          headerTitle: 'Event Hub',
           tabBarIcon: ({ color, size }) => <Zap color={color} size={size} />,
         }}
       />
