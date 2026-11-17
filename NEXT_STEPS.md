@@ -71,7 +71,7 @@ Captured from brainstorming session (also recorded in `PROJECT_OVERVIEW.md` and 
 
 ### Open Questions to Pick Up Next
 1. **Main App Name & SwingSet Separation (Onboarding Split):** Finalize the main public app name (TBD). Build the **1-step Mainstream SSO sign-up** (confirm nickname/city) and move the existing Partner Linking + Play Style/Boundaries onboarding **behind the SwingSet Code-of-Conduct Gate**.
-2. **3-Tier Ranking Boards (Event / Local / National):** Define how host ranking scores are calculated (e.g., total points scored by attendees, check-ins, event frequency) and where the Local/National boards live in the UI.
+2. **3-Tier Ranking Boards (Event / Local / National — Local/National Deferred):** Event-level live leaderboards are built in `TriviaModule.tsx`. Local & National ranking boards are intentionally **held off until post-launch traction** so the app doesn't show empty leaderboards early on.
 3. **Follow / Save Hosts:** Add a "Follow Host" button on event cards & a "Saved Hosts / Upcoming Events" view.
 4. **In-App Photo Challenges & Live Downtime Feed:** Build the camera + Host Inbox + live screensaver reel.
 5. **Paid Attendee Tier (Later):** Revisit what perks would justify a paid attendee tier down the road.

@@ -12,6 +12,7 @@ import {
 import { useRouter } from 'expo-router';
 import {
   Compass,
+  Heart,
   MapPin,
   Clock,
   Search,
@@ -36,6 +37,8 @@ export type TimeBucket = 'All' | 'Tonight' | 'This Weekend';
 
 export interface NearbyPublicEvent {
   id: string;
+  hostId: string;
+  hostName: string;
   title: string;
   category: EventCategory;
   isLifestyle: boolean;
@@ -63,6 +66,8 @@ export const EVENT_CATEGORIES: ('All' | EventCategory)[] = [
 const SAMPLE_NEARBY_EVENTS: NearbyPublicEvent[] = [
   {
     id: 'pub_trivia_1',
+    hostId: 'host_nations_tap',
+    hostName: 'Nations Trivia Crew',
     title: '90s & Pop Culture Trivia Night',
     category: 'Trivia Night',
     isLifestyle: false,
@@ -79,6 +84,8 @@ const SAMPLE_NEARBY_EVENTS: NearbyPublicEvent[] = [
   },
   {
     id: 'pub_mixer_1',
+    hostId: 'host_weho_social',
+    hostName: 'WeHo Social Collective',
     title: 'Friday Patio Icebreaker Mixer',
     category: 'Social Mixer',
     isLifestyle: false,
@@ -94,6 +101,8 @@ const SAMPLE_NEARBY_EVENTS: NearbyPublicEvent[] = [
   },
   {
     id: 'pub_singles_1',
+    hostId: 'host_east_mingle',
+    hostName: 'East Side Mixers',
     title: 'East Side Singles Speed-Mingle',
     category: 'Singles',
     isLifestyle: false,
@@ -109,6 +118,8 @@ const SAMPLE_NEARBY_EVENTS: NearbyPublicEvent[] = [
   },
   {
     id: 'pub_lifestyle_1',
+    hostId: 'host_velvet_parlor',
+    hostName: 'Velvet Parlor Hosts',
     title: 'Velvet Lounge Lifestyle Meet & Greet',
     category: 'Lifestyle',
     isLifestyle: true,
@@ -124,6 +135,8 @@ const SAMPLE_NEARBY_EVENTS: NearbyPublicEvent[] = [
   },
   {
     id: 'pub_crawl_1',
+    hostId: 'host_midtown_crawl',
+    hostName: 'Music City Excursions',
     title: 'Midtown 3-Stop Excursion Crawl',
     category: 'Bar / Pub Crawl',
     isLifestyle: false,
@@ -148,12 +161,69 @@ export default function NearbyTabScreen() {
   const [notice, setNotice] = useState<string | null>(null);
   const [liveEvents, setLiveEvents] = useState<NearbyPublicEvent[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [savedHostKeys, setSavedHostKeys] = useState<string[]>([]);
+  const [followingOnly, setFollowingOnly] = useState(false);
+
+  const loadSavedHosts = useCallback(async () => {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const uid = session?.user?.id;
+      if (!uid) return;
+
+      const { data, error } = await supabase
+        .from('saved_hosts')
+        .select('host_key')
+        .eq('user_id', uid);
+      if (!error && data) {
+        setSavedHostKeys(data.map((r: any) => r.host_key));
+      }
+    } catch {
+      // Ignore if migration 007 not applied yet
+    }
+  }, []);
+
+  const toggleFollowHost = async (hostId: string, hostName: string) => {
+    const isFollowing = savedHostKeys.includes(hostId);
+    setSavedHostKeys((prev) =>
+      isFollowing ? prev.filter((k) => k !== hostId) : [...prev, hostId]
+    );
+    setNotice(
+      isFollowing
+        ? `Unfollowed ${hostName}.`
+        : `Following ${hostName}! Filter by "Following" anytime to see their upcoming events.`
+    );
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const uid = session?.user?.id;
+      if (!uid) return;
+
+      if (isFollowing) {
+        await supabase
+          .from('saved_hosts')
+          .delete()
+          .eq('user_id', uid)
+          .eq('host_key', hostId);
+      } else {
+        await supabase.from('saved_hosts').upsert(
+          { user_id: uid, host_key: hostId, host_name: hostName },
+          { onConflict: 'user_id,host_key' }
+        );
+      }
+    } catch {
+      // Local state still works smoothly if migration 007 not applied yet
+    }
+  };
 
   const loadLivePublicEvents = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('events')
-        .select('id, title, description, dress_code, is_lifestyle, category, venue_name, venue_address, starts_at')
+        .select('id, owner_id, title, description, dress_code, is_lifestyle, category, venue_name, venue_address, starts_at')
         .eq('is_public', true)
         .eq('status', 'active')
         .order('starts_at', { ascending: true })
@@ -169,6 +239,8 @@ export default function NearbyTabScreen() {
           : 'Social Mixer';
         return {
           id: row.id,
+          hostId: row.owner_id || `host_${row.id}`,
+          hostName: row.venue_name || 'Live Event Host',
           title: row.title,
           category: cat,
           isLifestyle: Boolean(row.is_lifestyle || cat === 'Lifestyle'),
@@ -191,11 +263,12 @@ export default function NearbyTabScreen() {
 
   useEffect(() => {
     loadLivePublicEvents();
-  }, [loadLivePublicEvents]);
+    loadSavedHosts();
+  }, [loadLivePublicEvents, loadSavedHosts]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadLivePublicEvents();
+    await Promise.all([loadLivePublicEvents(), loadSavedHosts()]);
     setRefreshing(false);
   };
 
@@ -207,16 +280,17 @@ export default function NearbyTabScreen() {
   const filteredEvents = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return allEvents.filter((ev) => {
+      if (followingOnly && !savedHostKeys.includes(ev.hostId)) return false;
       if (!showLifestyle && ev.isLifestyle) return false;
       if (selectedCategory !== 'All' && ev.category !== selectedCategory) return false;
       if (selectedTime !== 'All' && ev.timeBucket !== selectedTime) return false;
       if (q) {
-        const hay = `${ev.title} ${ev.venueName} ${ev.address} ${ev.category}`.toLowerCase();
+        const hay = `${ev.title} ${ev.hostName} ${ev.venueName} ${ev.address} ${ev.category}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     }).sort((a, b) => a.distanceMiles - b.distanceMiles);
-  }, [allEvents, searchQuery, selectedCategory, selectedTime, showLifestyle]);
+  }, [allEvents, followingOnly, savedHostKeys, searchQuery, selectedCategory, selectedTime, showLifestyle]);
 
   const handleCheckInPress = (ev: NearbyPublicEvent) => {
     setNotice(`Ready to join "${ev.title}" — enter the venue Door Code or tap NFC at ${ev.venueName}.`);
@@ -274,6 +348,20 @@ export default function NearbyTabScreen() {
                 );
               })}
             </View>
+
+            <TouchableOpacity
+              style={[s.followingToggle, followingOnly && s.followingToggleActive]}
+              onPress={() => setFollowingOnly((prev) => !prev)}
+            >
+              <Heart
+                size={12}
+                color={followingOnly ? '#FFFFFF' : Colors.accent.copper}
+                fill={followingOnly ? '#FFFFFF' : 'transparent'}
+              />
+              <Text style={[s.followingToggleText, followingOnly && { color: '#FFFFFF' }]}>
+                Following ({savedHostKeys.length})
+              </Text>
+            </TouchableOpacity>
 
             <TouchableOpacity
               style={[s.lifestyleToggle, !showLifestyle && s.lifestyleToggleOff]}
@@ -370,6 +458,32 @@ export default function NearbyTabScreen() {
               </View>
 
               <Text style={s.eventTitle}>{ev.title}</Text>
+
+              {/* Host & Follow Row */}
+              <View style={s.hostRow}>
+                <Text style={s.hostText}>Hosted by {ev.hostName}</Text>
+                <TouchableOpacity
+                  style={[
+                    s.followBtn,
+                    savedHostKeys.includes(ev.hostId) && s.followBtnActive,
+                  ]}
+                  onPress={() => toggleFollowHost(ev.hostId, ev.hostName)}
+                >
+                  <Heart
+                    size={12}
+                    color={savedHostKeys.includes(ev.hostId) ? '#FFFFFF' : Colors.text.copper}
+                    fill={savedHostKeys.includes(ev.hostId) ? '#FFFFFF' : 'transparent'}
+                  />
+                  <Text
+                    style={[
+                      s.followBtnText,
+                      savedHostKeys.includes(ev.hostId) && s.followBtnTextActive,
+                    ]}
+                  >
+                    {savedHostKeys.includes(ev.hostId) ? 'Following' : 'Follow Host'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
 
               {/* Venue & Address */}
               <View style={s.metaRow}>
@@ -604,4 +718,43 @@ const s = StyleSheet.create({
     borderRadius: BorderRadius.sm,
   },
   checkInBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
+  followingToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: Colors.accent.copper,
+    backgroundColor: Colors.background.card,
+  },
+  followingToggleActive: {
+    backgroundColor: Colors.accent.copper,
+  },
+  followingToggleText: { fontSize: 11, fontWeight: '700', color: Colors.text.copper },
+  hostRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    gap: 8,
+  },
+  hostText: { fontSize: 12, fontWeight: '700', color: Colors.text.copper, flex: 1 },
+  followBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.background.card,
+    borderWidth: 1,
+    borderColor: Colors.accent.copper,
+  },
+  followBtnActive: {
+    backgroundColor: Colors.accent.copper,
+  },
+  followBtnText: { fontSize: 11, fontWeight: '800', color: Colors.text.copper },
+  followBtnTextActive: { color: '#FFFFFF' },
 });
