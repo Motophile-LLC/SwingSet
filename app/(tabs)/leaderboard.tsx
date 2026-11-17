@@ -8,12 +8,13 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import {
   BookUser,
   Check,
   Clock,
   Crown,
+  Lock,
   Mail,
   Phone,
   RefreshCw,
@@ -31,6 +32,7 @@ import { ContactExchangeService } from '@/src/services/contactExchangeService';
 import { TapTonightRecord, UnlockedContactPayload } from '@/src/types/swingset';
 
 export default function LittleBlackBookScreen() {
+  const router = useRouter();
   const { profile } = useUser();
   const [activeTab, setActiveTab] = useState<'mutual' | 'taps'>('mutual');
   const [loading, setLoading] = useState(true);
@@ -64,8 +66,10 @@ export default function LittleBlackBookScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      loadLittleBlackBook();
-    }, [loadLittleBlackBook])
+      if (profile.swingsetOptedIn) {
+        loadLittleBlackBook();
+      }
+    }, [loadLittleBlackBook, profile.swingsetOptedIn])
   );
 
   const handleRequestContact = async (item: TapTonightRecord) => {
@@ -115,6 +119,31 @@ export default function LittleBlackBookScreen() {
   };
 
   const incomingCount = allTaps.filter((t) => t.exchange_status === 'incoming_pending').length;
+
+  if (!profile.swingsetOptedIn) {
+    return (
+      <SafeAreaView style={s.container}>
+        <View style={s.gateWrap}>
+          <View style={s.gateCard}>
+            <View style={s.gateIconCircle}>
+              <Lock size={26} color={Colors.accent.crimson} />
+            </View>
+            <Text style={s.gateTitle}>Little Black Book Is Inside SwingSet</Text>
+            <Text style={s.gateDesc}>
+              Your private mutual-contact vault and tap connections are isolated inside the SwingSet Lifestyle space. Accept the SwingSet Code of Conduct to unlock access.
+            </Text>
+            <TouchableOpacity
+              style={s.gateBtn}
+              onPress={() => router.push('/swingset-gate' as any)}
+            >
+              <ShieldCheck size={17} color="#FFFFFF" />
+              <Text style={s.gateBtnText}>Open SwingSet Gate</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={s.container}>
@@ -585,4 +614,37 @@ const s = StyleSheet.create({
     paddingVertical: 11,
   },
   requestBtnText: { fontSize: 13, fontWeight: '800', color: '#FFF' },
+  gateWrap: { flex: 1, justifyContent: 'center', padding: Spacing.md },
+  gateCard: {
+    backgroundColor: Colors.background.darkSteel,
+    borderWidth: 1,
+    borderColor: Colors.accent.crimson,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.lg,
+    alignItems: 'center',
+    gap: 12,
+  },
+  gateIconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 92, 122, 0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gateTitle: { fontSize: 18, fontWeight: '800', color: Colors.text.primary, textAlign: 'center' },
+  gateDesc: { fontSize: 13, color: Colors.text.secondary, textAlign: 'center', lineHeight: 19 },
+  gateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.accent.copper,
+    borderRadius: BorderRadius.md,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    width: '100%',
+    marginTop: 4,
+  },
+  gateBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
 });
