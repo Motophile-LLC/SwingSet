@@ -15,7 +15,12 @@ create index if not exists idx_trivia_history_host_venue
 alter table public.trivia_question_history enable row level security;
 
 drop policy if exists "Hosts manage own trivia question history" on public.trivia_question_history;
-create policy "Hosts manage own trivia question history"
-  on public.trivia_question_history for all
-  using (auth.uid() = host_user_id)
+drop policy if exists "Authenticated users read trivia venue history" on public.trivia_question_history;
+create policy "Authenticated users read trivia venue history"
+  on public.trivia_question_history for select
+  using (auth.role() = 'authenticated');
+
+drop policy if exists "Hosts log own trivia question history" on public.trivia_question_history;
+create policy "Hosts log own trivia question history"
+  on public.trivia_question_history for insert
   with check (auth.uid() = host_user_id);

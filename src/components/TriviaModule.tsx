@@ -164,21 +164,22 @@ export function TriviaModule({
     return () => clearTimeout(timer);
   }, [isHost, state.phase, state.roundQuestionIndex, state.questionsPerRound, state.questionIndex]);
 
-  // Load previously used questions for this host & venue so we avoid repeats
+  // Load previously used questions for this venue (across hosts) or host so we avoid repeats
   useEffect(() => {
     if (!isHost || !hostUserId) return;
     const loadUsedHistory = async () => {
       try {
         const venueKey = (venueName || '').trim().toLowerCase();
-        const query = supabase
+        const baseQuery = supabase
           .from('trivia_question_history')
           .select('question_id')
-          .eq('host_user_id', hostUserId)
           .order('used_at', { ascending: false })
-          .limit(500);
+          .limit(1000);
+
         const { data, error } = venueKey
-          ? await query.eq('venue_key', venueKey)
-          : await query;
+          ? await baseQuery.or(`venue_key.eq.${venueKey},host_user_id.eq.${hostUserId}`)
+          : await baseQuery.eq('host_user_id', hostUserId);
+
         if (!error && data) {
           setUsedQuestionIds(data.map((r: any) => r.question_id));
         }
@@ -227,7 +228,7 @@ export function TriviaModule({
           query = query.eq('genre', state.genre);
         }
 
-        const { data, error } = await query.limit(600);
+        const { data, error } = await query.limit(1000);
         if (error || !data || data.length === 0) {
           setRemoteBank([]);
           return;
