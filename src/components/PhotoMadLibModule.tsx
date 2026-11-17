@@ -418,34 +418,62 @@ export function PhotoMadLibModule({
         <Text style={s.sectionLabel}>DIRECTED PHOTO PROMPTS ({activeStory.slots.length})</Text>
         {activeStory.slots.map((slot) => {
           const isBusy = capturingSlot === slot.slotIndex;
+          const mySub = state.submissions.find(
+            (sub) =>
+              sub.storyId === activeStory.id &&
+              sub.slotIndex === slot.slotIndex &&
+              sub.userId === currentUserId &&
+              sub.status !== 'rejected'
+          );
+          const isDone = Boolean(mySub);
+
           return (
-            <View key={slot.slotIndex} style={s.slotCard}>
+            <View key={slot.slotIndex} style={[s.slotCard, isDone && s.slotCardDone]}>
               <View style={s.slotTopRow}>
                 <View style={s.slotBadge}>
                   <Text style={s.slotBadgeText}>
                     FRAME {slot.slotIndex + 1} • {slot.mode.toUpperCase()}
                   </Text>
                 </View>
+                {mySub ? (
+                  <View style={s.doneBadge}>
+                    <Check size={11} color={Colors.accent.emerald} />
+                    <Text style={s.doneBadgeText}>
+                      {mySub.status === 'approved' ? 'APPROVED' : 'SUBMITTED'}
+                    </Text>
+                  </View>
+                ) : null}
               </View>
-              <Text style={s.slotPrompt}>{slot.prompt}</Text>
-              <View style={s.rowGap}>
-                <TouchableOpacity
-                  style={s.snapBtn}
-                  disabled={isBusy}
-                  onPress={() => handleCapturePhoto(slot, true)}
-                >
-                  <Camera size={15} color="#FFF" />
-                  <Text style={s.snapBtnText}>{isBusy ? 'Opening...' : 'Snap Photo'}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={s.libBtn}
-                  disabled={isBusy}
-                  onPress={() => handleCapturePhoto(slot, false)}
-                >
-                  <ImageIcon size={15} color={Colors.text.copper} />
-                  <Text style={s.libBtnText}>Library</Text>
-                </TouchableOpacity>
-              </View>
+              <Text style={[s.slotPrompt, isDone && s.slotPromptDone]}>{slot.prompt}</Text>
+              {isDone ? (
+                <View style={s.doneBar}>
+                  <Check size={14} color={Colors.accent.emerald} />
+                  <Text style={s.doneBarText}>
+                    {mySub?.status === 'approved'
+                      ? 'Completed — Live on Story Timeline'
+                      : 'Completed — Waiting for Host Approval'}
+                  </Text>
+                </View>
+              ) : (
+                <View style={s.rowGap}>
+                  <TouchableOpacity
+                    style={s.snapBtn}
+                    disabled={isBusy}
+                    onPress={() => handleCapturePhoto(slot, true)}
+                  >
+                    <Camera size={15} color="#FFF" />
+                    <Text style={s.snapBtnText}>{isBusy ? 'Opening...' : 'Snap Photo'}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={s.libBtn}
+                    disabled={isBusy}
+                    onPress={() => handleCapturePhoto(slot, false)}
+                  >
+                    <ImageIcon size={15} color={Colors.text.copper} />
+                    <Text style={s.libBtnText}>Library</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           );
         })}
@@ -649,4 +677,33 @@ const s = StyleSheet.create({
   timelineBy: { fontSize: 11, fontWeight: '700', color: Colors.text.secondary, flex: 1 },
   timelineImage: { width: '100%', height: 190, borderRadius: BorderRadius.sm, backgroundColor: '#000' },
   timelineCaption: { fontSize: 13, fontWeight: '700', color: Colors.text.primary, lineHeight: 19 },
+  slotCardDone: {
+    opacity: 0.58,
+    borderColor: Colors.accent.emerald,
+  },
+  slotPromptDone: {
+    color: Colors.text.secondary,
+    textDecorationLine: 'line-through',
+  },
+  doneBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginLeft: 'auto',
+    backgroundColor: 'rgba(52, 211, 153, 0.16)',
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  doneBadgeText: { fontSize: 10, fontWeight: '800', color: Colors.accent.emerald },
+  doneBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.background.inputBg,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  doneBarText: { fontSize: 12, fontWeight: '700', color: Colors.accent.emerald },
 });
