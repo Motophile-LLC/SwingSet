@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Image,
@@ -15,6 +15,7 @@ import {
   Film,
   Image as ImageIcon,
   Play,
+  RefreshCw,
   ShieldCheck,
   Sparkles,
   Trash2,
@@ -84,35 +85,36 @@ export function PhotoMadLibModule({
     });
   };
 
+  const loadSavedPhotos = useCallback(async () => {
+    if (!eventId) return;
+    try {
+      const { data, error } = await supabase
+        .from('event_photo_submissions')
+        .select('*')
+        .eq('event_id', eventId)
+        .order('created_at', { ascending: true });
+      if (!error && data) {
+        const mapped: PhotoSubmission[] = data.map((r: any) => ({
+          id: r.id,
+          userId: r.user_id,
+          displayName: r.display_name,
+          storyId: r.story_id,
+          slotIndex: r.slot_index,
+          slotPrompt: r.slot_prompt,
+          storyCaption: r.story_caption,
+          imageDataUrl: r.image_data_url,
+          status: r.status,
+          createdAt: r.created_at,
+        }));
+        setState((prev) => ({ ...prev, submissions: mapped }));
+      }
+    } catch {
+      // Ignore if migration 008 not applied yet
+    }
+  }, [eventId]);
+
   useEffect(() => {
     if (!eventId) return;
-
-    const loadSavedPhotos = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('event_photo_submissions')
-          .select('*')
-          .eq('event_id', eventId)
-          .order('created_at', { ascending: true });
-        if (!error && data && data.length > 0) {
-          const mapped: PhotoSubmission[] = data.map((r: any) => ({
-            id: r.id,
-            userId: r.user_id,
-            displayName: r.display_name,
-            storyId: r.story_id,
-            slotIndex: r.slot_index,
-            slotPrompt: r.slot_prompt,
-            storyCaption: r.story_caption,
-            imageDataUrl: r.image_data_url,
-            status: r.status,
-            createdAt: r.created_at,
-          }));
-          setState((prev) => ({ ...prev, submissions: mapped }));
-        }
-      } catch {
-        // Ignore if migration 008 not applied yet
-      }
-    };
     loadSavedPhotos();
 
     const ch = supabase.channel(`photos:${eventId}`, {
@@ -120,14 +122,27 @@ export function PhotoMadLibModule({
     });
     ch.on('broadcast', { event: 'photo_state' }, ({ payload }: { payload: PhotoLiveState }) => {
       if (payload) setState(payload);
-    }).subscribe();
+    })
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'event_photo_submissions',
+          filter: `event_id=eq.${eventId}`,
+        },
+        () => {
+          loadSavedPhotos();
+        }
+      )
+      .subscribe();
 
     channelRef.current = ch;
     return () => {
       supabase.removeChannel(ch);
       channelRef.current = null;
     };
-  }, [eventId]);
+  }, [eventId, loadSavedPhotos]);
 
   const approvedForStory = useMemo(
     () =>
@@ -197,11 +212,32 @@ export function PhotoMadLibModule({
         : asset.uri;
 
       const caption = slot.storyTemplate.replace('{name}', currentDisplayName || 'A guest');
-      const initialStatus: 'approved' | 'pending' =
-        state.autoApprove || isHost ? 'approved' : 'pending';
+      const initialStatus: 'approved' | 'pending' = state.autoApprove ? 'approved' : 'pending';
+
+      let insertedId = `photo_${Date.now()}`;
+      try {
+        const { data: inserted } = await supabase
+          .from('event_photo_submissions')
+          .insert({
+            event_id: eventId,
+            user_id: currentUserId,
+            display_name: currentDisplayName || 'Guest',
+            story_id: activeStory.id,
+            slot_index: slot.slotIndex,
+            slot_prompt: slot.prompt,
+            story_caption: caption,
+            image_data_url: dataUrl,
+            status: initialStatus,
+          })
+          .select('id')
+          .single();
+        if (inserted?.id) insertedId = inserted.id;
+      } catch {
+        // Realtime broadcast still delivers it
+      }
 
       const newSub: PhotoSubmission = {
-        id: `photo_${Date.now()}`,
+        id: insertedId,
         userId: currentUserId,
         displayName: currentDisplayName || 'Guest',
         storyId: activeStory.id,
@@ -218,23 +254,6 @@ export function PhotoMadLibModule({
         submissions: [...state.submissions, newSub],
       };
       broadcastState(nextState);
-
-      // Persist to Supabase if migration 008 is applied
-      try {
-        await supabase.from('event_photo_submissions').insert({
-          event_id: eventId,
-          user_id: currentUserId,
-          display_name: newSub.displayName,
-          story_id: newSub.storyId,
-          slot_index: newSub.slotIndex,
-          slot_prompt: newSub.slotPrompt,
-          story_caption: newSub.storyCaption,
-          image_data_url: newSub.imageDataUrl,
-          status: newSub.status,
-        });
-      } catch {
-        // Realtime broadcast still delivered it
-      }
 
       Alert.alert(
         initialStatus === 'approved' ? 'Added to Story Timeline!' : 'Sent to Host Inbox!',
@@ -365,9 +384,14 @@ export function PhotoMadLibModule({
           </View>
 
           {/* Host Inbox Queue */}
-          <Text style={s.subLabel}>
-            Host Inbox ({pendingSubmissions.length} pending approval)
-          </Text>
+          <View style={[s.rowGap, { justifyContent: 'space-between' }]}>
+            <Text style={s.subLabel}>
+              Host Inbox ({pendingSubmissions.length} pending approval)
+            </Text>
+            <TouchableOpacity onPress={loadSavedPhotos} hitSlop={8}>
+              <RefreshCw size={14} color={Colors.text.copper} />
+            </TouchableOpacity>
+          </View>
           {pendingSubmissions.length === 0 ? (
             <Text style={s.emptyInboxText}>No pending photos in your inbox yet.</Text>
           ) : (
