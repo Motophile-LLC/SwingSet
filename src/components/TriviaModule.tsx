@@ -22,6 +22,7 @@ import {
 import { BorderRadius, Colors, Spacing } from '@/constants/theme';
 import { HostIntroBox } from '@/src/components/HostIntroBox';
 import { supabase } from '@/src/lib/supabase';
+import { EventAttendee } from '@/src/types/swingset';
 import {
   CURATED_TRIVIA_BANK,
   TRIVIA_GENRES,
@@ -49,9 +50,12 @@ interface TriviaTeam {
 interface TriviaLiveState {
   playMode: TriviaPlayMode;
   genre: TriviaGenre;
-  phase: 'lobby' | 'question' | 'revealed';
+  phase: 'lobby' | 'question' | 'revealed' | 'round_complete';
   activeQuestion: TriviaQuestion | null;
   questionIndex: number;
+  roundNumber: number;
+  questionsPerRound: number;
+  roundQuestionIndex: number;
   questionDurationSec: number;
   questionEndsAt: number | null;
   teams: TriviaTeam[];
@@ -68,6 +72,9 @@ interface TriviaModuleProps {
   isTier2Pro: boolean;
   currentUserId: string | null;
   currentDisplayName: string;
+  attendees?: EventAttendee[];
+  hostUserId?: string;
+  venueName?: string;
 }
 
 const OPTION_LETTERS = ['A', 'B', 'C', 'D'] as const;
@@ -78,6 +85,9 @@ export function TriviaModule({
   isTier2Pro,
   currentUserId,
   currentDisplayName,
+  attendees = [],
+  hostUserId,
+  venueName = '',
 }: TriviaModuleProps) {
   const [state, setState] = useState<TriviaLiveState>({
     playMode: 'teams',
@@ -85,6 +95,9 @@ export function TriviaModule({
     phase: 'lobby',
     activeQuestion: null,
     questionIndex: 0,
+    roundNumber: 1,
+    questionsPerRound: 5,
+    roundQuestionIndex: 0,
     questionDurationSec: 30,
     questionEndsAt: null,
     teams: [],
@@ -95,6 +108,7 @@ export function TriviaModule({
 
   const [customBank, setCustomBank] = useState<TriviaQuestion[]>([]);
   const [remoteBank, setRemoteBank] = useState<TriviaQuestion[]>([]);
+  const [usedQuestionIds, setUsedQuestionIds] = useState<string[]>([]);
   const [teamNameInput, setTeamNameInput] = useState('');
   const [showCustomForm, setShowCustomForm] = useState(false);
   const [customQ, setCustomQ] = useState('');
@@ -127,6 +141,50 @@ export function TriviaModule({
       handleRevealAndScore();
     }
   }, [isHost, isTimeUp, state.phase, state.activeQuestion]);
+
+  // Auto-advance round after 4s reveal banner (until round finishes)
+  useEffect(() => {
+    if (!isHost || state.phase !== 'revealed') return;
+    const timer = setTimeout(() => {
+      const nextRoundQ = (state.roundQuestionIndex || 0) + 1;
+      const perRound = state.questionsPerRound || 5;
+      if (nextRoundQ >= perRound) {
+        broadcastState({
+          ...state,
+          phase: 'round_complete',
+          questionEndsAt: null,
+        });
+      } else {
+        handleStartQuestion(state.questionIndex + 1, nextRoundQ);
+      }
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [isHost, state.phase, state.roundQuestionIndex, state.questionsPerRound, state.questionIndex]);
+
+  // Load previously used questions for this host & venue so we avoid repeats
+  useEffect(() => {
+    if (!isHost || !hostUserId) return;
+    const loadUsedHistory = async () => {
+      try {
+        const venueKey = (venueName || '').trim().toLowerCase();
+        const query = supabase
+          .from('trivia_question_history')
+          .select('question_id')
+          .eq('host_user_id', hostUserId)
+          .order('used_at', { ascending: false })
+          .limit(500);
+        const { data, error } = venueKey
+          ? await query.eq('venue_key', venueKey)
+          : await query;
+        if (!error && data) {
+          setUsedQuestionIds(data.map((r: any) => r.question_id));
+        }
+      } catch {
+        // Ignore if migration 009 not applied yet
+      }
+    };
+    loadUsedHistory();
+  }, [isHost, hostUserId, venueName]);
 
   const broadcastState = (next: TriviaLiveState) => {
     setState(next);
@@ -189,9 +247,10 @@ export function TriviaModule({
 
   const genreQuestions = useMemo(() => {
     const base = remoteBank.length > 0 ? remoteBank : CURATED_TRIVIA_BANK;
-    const all = [...customBank, ...base];
-    return all.filter((q) => q.genre === state.genre);
-  }, [customBank, remoteBank, state.genre]);
+    const all = [...customBank, ...base].filter((q) => q.genre === state.genre);
+    const unused = all.filter((q) => !usedQuestionIds.includes(q.id));
+    return unused.length > 0 ? unused : all;
+  }, [customBank, remoteBank, state.genre, usedQuestionIds]);
 
   const myTeam = useMemo(
     () =>
@@ -203,9 +262,9 @@ export function TriviaModule({
 
   const isCaptain = Boolean(myTeam && currentUserId && myTeam.captainUserId === currentUserId);
 
-  // Team actions
+  // Team actions (attendees only — host does not compete)
   const handleCreateTeam = () => {
-    if (!currentUserId || !teamNameInput.trim()) return;
+    if (isHost || !currentUserId || !teamNameInput.trim()) return;
     const cleaned = teamNameInput.trim();
     const newTeam: TriviaTeam = {
       id: `team_${Date.now()}`,
@@ -227,7 +286,7 @@ export function TriviaModule({
   };
 
   const handleJoinTeam = (teamId: string) => {
-    if (!currentUserId) return;
+    if (isHost || !currentUserId) return;
     const updatedTeams = state.teams
       .map((t) => {
         const withoutMe = t.members.filter((m) => m.userId !== currentUserId);
@@ -243,20 +302,43 @@ export function TriviaModule({
     broadcastState({ ...state, teams: updatedTeams });
   };
 
+  const recordQuestionUsed = async (questionId: string) => {
+    setUsedQuestionIds((prev) => (prev.includes(questionId) ? prev : [...prev, questionId]));
+    if (!hostUserId) return;
+    try {
+      await supabase.from('trivia_question_history').insert({
+        host_user_id: hostUserId,
+        venue_key: (venueName || '').trim().toLowerCase(),
+        question_id: questionId,
+        event_id: eventId,
+      });
+    } catch {
+      // Ignore if migration 009 not applied yet
+    }
+  };
+
   // Host actions
-  const handleStartQuestion = (indexOverride?: number) => {
+  const handleStartQuestion = (indexOverride?: number, roundQIdxOverride?: number, nextRoundNum?: number) => {
     const idx = indexOverride !== undefined ? indexOverride : state.questionIndex;
     const q = genreQuestions[idx % Math.max(genreQuestions.length, 1)] || CURATED_TRIVIA_BANK[0];
     const dur = state.questionDurationSec || 30;
+    recordQuestionUsed(q.id);
     broadcastState({
       ...state,
       phase: 'question',
       activeQuestion: q,
       questionIndex: idx,
+      roundNumber: nextRoundNum ?? state.roundNumber ?? 1,
+      roundQuestionIndex: roundQIdxOverride ?? state.roundQuestionIndex ?? 0,
       questionEndsAt: Date.now() + dur * 1000,
       teamSuggestions: {},
       lockedAnswers: {},
     });
+  };
+
+  const handleStartNewRound = () => {
+    const nextRound = state.phase === 'round_complete' ? (state.roundNumber || 1) + 1 : state.roundNumber || 1;
+    handleStartQuestion(0, 0, nextRound);
   };
 
   const handleRevealAndScore = () => {
@@ -295,8 +377,17 @@ export function TriviaModule({
   };
 
   const handleNextQuestion = () => {
-    const nextIdx = (state.questionIndex + 1) % Math.max(genreQuestions.length, 1);
-    handleStartQuestion(nextIdx);
+    const nextRoundQ = (state.roundQuestionIndex || 0) + 1;
+    const perRound = state.questionsPerRound || 5;
+    if (nextRoundQ >= perRound) {
+      broadcastState({
+        ...state,
+        phase: 'round_complete',
+        questionEndsAt: null,
+      });
+      return;
+    }
+    handleStartQuestion(state.questionIndex + 1, nextRoundQ);
   };
 
   const handleResetScores = () => {
@@ -305,6 +396,8 @@ export function TriviaModule({
       phase: 'lobby',
       activeQuestion: null,
       questionIndex: 0,
+      roundNumber: 1,
+      roundQuestionIndex: 0,
       questionEndsAt: null,
       teams: state.teams.map((t) => ({ ...t, score: 0 })),
       soloScores: {},
@@ -330,9 +423,9 @@ export function TriviaModule({
     setShowCustomForm(false);
   };
 
-  // Player / Captain Answer actions
+  // Player / Captain Answer actions (Host does not compete)
   const handleSuggestAnswer = (optionIndex: number) => {
-    if (!currentUserId || state.phase !== 'question' || isTimeUp) return;
+    if (isHost || !currentUserId || state.phase !== 'question' || isTimeUp) return;
 
     if (state.playMode === 'solo') {
       broadcastState({
@@ -380,10 +473,36 @@ export function TriviaModule({
         .sort((a, b) => b.score - a.score)
         .map((t) => ({ id: t.id, name: t.name, score: t.score, sub: `Capt: ${t.captainName}` }));
     }
-    return Object.entries(state.soloScores)
-      .sort((a, b) => b[1].score - a[1].score)
-      .map(([id, s]) => ({ id, name: s.name, score: s.score, sub: 'Solo Player' }));
-  }, [state.playMode, state.teams, state.soloScores]);
+
+    const merged = new Map<string, { id: string; name: string; score: number; sub: string }>();
+
+    // Seed all checked-in attendees at 0 pts (excluding the host)
+    attendees
+      .filter((a) => !a.is_removed && a.user_id !== hostUserId)
+      .forEach((a) => {
+        merged.set(a.user_id, {
+          id: a.user_id,
+          name: a.display_name,
+          score: 0,
+          sub: 'Checked In',
+        });
+      });
+
+    // Overlay earned solo scores (excluding host)
+    Object.entries(state.soloScores).forEach(([uid, val]) => {
+      if (uid === hostUserId) return;
+      merged.set(uid, {
+        id: uid,
+        name: val.name,
+        score: val.score,
+        sub: 'Solo Player',
+      });
+    });
+
+    return Array.from(merged.values()).sort(
+      (a, b) => b.score - a.score || a.name.localeCompare(b.name)
+    );
+  }, [state.playMode, state.teams, state.soloScores, attendees, hostUserId]);
 
   const myTeamSuggestions = myTeam ? Object.values(state.teamSuggestions[myTeam.id] || {}) : [];
   const myTeamLocked = myTeam ? state.lockedAnswers[myTeam.id] : undefined;
@@ -494,11 +613,33 @@ export function TriviaModule({
             })}
           </View>
 
+          <Text style={s.subLabel}>Questions Per Round</Text>
           <View style={s.rowGap}>
-            {state.phase === 'lobby' ? (
-              <TouchableOpacity style={s.primaryBtn} onPress={() => handleStartQuestion(0)}>
+            {[3, 5, 10].map((cnt) => {
+              const active = state.questionsPerRound === cnt;
+              return (
+                <TouchableOpacity
+                  key={cnt}
+                  style={[s.timerChoiceBtn, active && s.timerChoiceBtnActive]}
+                  onPress={() => broadcastState({ ...state, questionsPerRound: cnt })}
+                >
+                  <Text style={[s.timerChoiceText, active && s.timerChoiceTextActive]}>
+                    {cnt} Qs
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <View style={s.rowGap}>
+            {state.phase === 'lobby' || state.phase === 'round_complete' ? (
+              <TouchableOpacity style={s.primaryBtn} onPress={handleStartNewRound}>
                 <Play size={15} color="#FFF" />
-                <Text style={s.primaryBtnText}>Start Question 1</Text>
+                <Text style={s.primaryBtnText}>
+                  {state.phase === 'round_complete'
+                    ? `Start Round ${(state.roundNumber || 1) + 1} (${state.questionsPerRound} Qs)`
+                    : `Start Round ${state.roundNumber || 1} (${state.questionsPerRound} Qs)`}
+                </Text>
               </TouchableOpacity>
             ) : state.phase === 'question' ? (
               <TouchableOpacity style={s.revealBtn} onPress={handleRevealAndScore}>
@@ -508,7 +649,11 @@ export function TriviaModule({
             ) : (
               <TouchableOpacity style={s.primaryBtn} onPress={handleNextQuestion}>
                 <Play size={15} color="#FFF" />
-                <Text style={s.primaryBtnText}>Next Question</Text>
+                <Text style={s.primaryBtnText}>
+                  {(state.roundQuestionIndex || 0) + 1 >= (state.questionsPerRound || 5)
+                    ? 'Finish Round'
+                    : 'Next Question Now'}
+                </Text>
               </TouchableOpacity>
             )}
 
@@ -570,8 +715,8 @@ export function TriviaModule({
         </View>
       ) : null}
 
-      {/* Team Setup (when in Teams mode) */}
-      {state.playMode === 'teams' ? (
+      {/* Team Setup (attendees only — host does not compete) */}
+      {!isHost && state.playMode === 'teams' ? (
         <View style={s.card}>
           <Text style={s.sectionLabel}>
             {myTeam ? `YOUR TEAM: ${myTeam.name}` : 'JOIN OR CREATE A TEAM'}
@@ -625,13 +770,33 @@ export function TriviaModule({
         </View>
       ) : null}
 
+      {/* Round Complete Banner */}
+      {state.phase === 'round_complete' ? (
+        <View style={s.roundCompleteCard}>
+          <Trophy size={26} color={Colors.accent.emerald} />
+          <Text style={s.roundCompleteTitle}>Round {state.roundNumber} Complete!</Text>
+          <Text style={s.roundCompleteSub}>
+            Check the standings below. {isHost ? 'Pick a genre or tap Start Next Round when ready.' : 'Waiting for host to start the next round.'}
+          </Text>
+        </View>
+      ) : null}
+
       {/* Active Question Card */}
-      {state.activeQuestion ? (
+      {state.activeQuestion && state.phase !== 'round_complete' ? (
         <View style={s.questionCard}>
-          <View style={s.qHeaderRow}>
-            <Text style={s.qMeta}>
-              {state.activeQuestion.genre.toUpperCase()} • {state.activeQuestion.points} PTS
+          <View style={s.topicBannerRow}>
+            <View style={s.topicBadge}>
+              <Text style={s.topicBadgeText}>
+                TOPIC: {state.activeQuestion.genre.toUpperCase()}
+              </Text>
+            </View>
+            <Text style={s.roundProgressText}>
+              ROUND {state.roundNumber} • Q {(state.roundQuestionIndex || 0) + 1} OF{' '}
+              {state.questionsPerRound}
             </Text>
+          </View>
+          <View style={s.qHeaderRow}>
+            <Text style={s.qMeta}>{state.activeQuestion.points} PTS</Text>
             {state.phase === 'question' ? (
               <View
                 style={[
@@ -1135,5 +1300,51 @@ const s = StyleSheet.create({
     fontSize: 12,
     color: Colors.text.primary,
     fontWeight: '600',
+  },
+  topicBannerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  topicBadge: {
+    backgroundColor: 'rgba(90, 107, 255, 0.18)',
+    borderWidth: 1,
+    borderColor: Colors.accent.copper,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  topicBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: Colors.text.copper,
+    letterSpacing: 0.4,
+  },
+  roundProgressText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: Colors.text.secondary,
+    letterSpacing: 0.4,
+  },
+  roundCompleteCard: {
+    alignItems: 'center',
+    backgroundColor: Colors.background.darkSteel,
+    borderWidth: 1,
+    borderColor: Colors.accent.emerald,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.lg,
+    gap: 6,
+  },
+  roundCompleteTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: Colors.accent.emerald,
+  },
+  roundCompleteSub: {
+    fontSize: 12,
+    color: Colors.text.secondary,
+    textAlign: 'center',
   },
 });

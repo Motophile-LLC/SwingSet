@@ -378,6 +378,9 @@ export default function EventDetailRoomScreen() {
                 isTier2Pro={eventData.host_tier === 'tier_2'}
                 currentUserId={currentUserId}
                 currentDisplayName="Host"
+                attendees={attendees}
+                hostUserId={eventData.owner_id}
+                venueName={eventData.venue_name || ''}
               />
             </View>
           ) : roomMode === 'photos' ? (
@@ -496,6 +499,9 @@ export default function EventDetailRoomScreen() {
             isTier2Pro={eventData.host_tier === 'tier_2'}
             currentUserId={currentUserId}
             currentDisplayName={myAttendee?.display_name || 'Guest'}
+            attendees={attendees}
+            hostUserId={eventData.owner_id}
+            venueName={eventData.venue_name || ''}
           />
         ) : roomMode === 'photos' ? (
           <PhotoMadLibModule
