@@ -66,6 +66,8 @@ export function PhotoMadLibModule({
     submissions: [],
   });
   const [reelIndex, setReelIndex] = useState(0);
+  const [localReelPlaying, setLocalReelPlaying] = useState(false);
+  const [storyScope, setStoryScope] = useState<'mine' | 'room'>(isHost ? 'room' : 'mine');
   const [capturingSlot, setCapturingSlot] = useState<number | null>(null);
   const channelRef = useRef<any>(null);
 
@@ -152,19 +154,50 @@ export function PhotoMadLibModule({
     [state.submissions, activeStory.id]
   );
 
+  const visibleStoryFrames = useMemo(
+    () =>
+      storyScope === 'mine' && currentUserId
+        ? approvedForStory.filter((sub) => sub.userId === currentUserId)
+        : approvedForStory,
+    [approvedForStory, storyScope, currentUserId]
+  );
+
   const pendingSubmissions = useMemo(
     () => state.submissions.filter((sub) => sub.status === 'pending'),
     [state.submissions]
   );
 
-  // Auto-cycle live downtime screensaver reel every 5 seconds
+  const hasMyPending = useMemo(
+    () =>
+      Boolean(
+        currentUserId &&
+          state.submissions.some(
+            (sub) => sub.userId === currentUserId && sub.status === 'pending'
+          )
+      ),
+    [state.submissions, currentUserId]
+  );
+
+  // Poll Supabase every 5s while user has pending photos (or host is waiting on inbox)
   useEffect(() => {
-    if (!state.screensaverActive || approvedForStory.length <= 1) return;
-    const timer = setInterval(() => {
-      setReelIndex((prev) => (prev + 1) % approvedForStory.length);
+    if (!hasMyPending && !isHost) return;
+    const poll = setInterval(() => {
+      loadSavedPhotos();
     }, 5000);
+    return () => clearInterval(poll);
+  }, [hasMyPending, isHost, loadSavedPhotos]);
+
+  const isReelActive = state.screensaverActive || localReelPlaying;
+  const reelFrames = localReelPlaying ? visibleStoryFrames : approvedForStory;
+
+  // Auto-cycle live downtime / personal story reel every 4 seconds
+  useEffect(() => {
+    if (!isReelActive || reelFrames.length <= 1) return;
+    const timer = setInterval(() => {
+      setReelIndex((prev) => (prev + 1) % reelFrames.length);
+    }, 4000);
     return () => clearInterval(timer);
-  }, [state.screensaverActive, approvedForStory.length]);
+  }, [isReelActive, reelFrames.length]);
 
   const handleCapturePhoto = async (slot: PhotoMadLibSlot, useCamera: boolean) => {
     if (!currentUserId) return;
@@ -279,14 +312,15 @@ export function PhotoMadLibModule({
         .from('event_photo_submissions')
         .update({ status: nextStatus })
         .eq('id', subId);
+      await loadSavedPhotos();
     } catch {
       // Ignore if local-only ID
     }
   };
 
   const currentReelSlide =
-    approvedForStory.length > 0
-      ? approvedForStory[reelIndex % approvedForStory.length]
+    reelFrames.length > 0
+      ? reelFrames[reelIndex % reelFrames.length]
       : null;
 
   return (
@@ -306,14 +340,14 @@ export function PhotoMadLibModule({
         </View>
       </View>
 
-      {/* Live Downtime Screensaver Reel */}
-      {state.screensaverActive && currentReelSlide ? (
+      {/* Live Story / Downtime Reel (visible to host & all attendees) */}
+      {isReelActive && currentReelSlide ? (
         <View style={s.reelCard}>
           <View style={s.reelHeader}>
             <Sparkles size={15} color={Colors.accent.copper} />
             <Text style={s.reelEyebrow}>
-              LIVE DOWNTIME REEL • FRAME {(reelIndex % approvedForStory.length) + 1} OF{' '}
-              {approvedForStory.length}
+              {localReelPlaying ? 'MY STORY REEL' : 'LIVE ROOM STORY REEL'} • SCENE{' '}
+              {(reelIndex % reelFrames.length) + 1} OF {reelFrames.length}
             </Text>
           </View>
           <Image
@@ -322,9 +356,7 @@ export function PhotoMadLibModule({
             resizeMode="cover"
           />
           <Text style={s.reelCaption}>{currentReelSlide.storyCaption}</Text>
-          <Text style={s.reelCredit}>
-            Starring {currentReelSlide.displayName} • Prompt: {currentReelSlide.slotPrompt}
-          </Text>
+          <Text style={s.reelCredit}>Starring {currentReelSlide.displayName}</Text>
         </View>
       ) : null}
 
@@ -505,18 +537,62 @@ export function PhotoMadLibModule({
 
       {/* Compiled Still-Frame Story Timeline */}
       <View style={s.card}>
-        <View style={s.rowGap}>
-          <Film size={16} color={Colors.accent.copper} />
-          <Text style={s.sectionLabel}>
-            COMPILED STORY TIMELINE ({approvedForStory.length} FRAMES)
-          </Text>
+        <View style={[s.rowGap, { justifyContent: 'space-between' }]}>
+          <View style={s.rowGap}>
+            <Film size={16} color={Colors.accent.copper} />
+            <Text style={s.sectionLabel}>
+              {storyScope === 'mine' ? 'MY STORY TIMELINE' : 'ROOM STORY TIMELINE'} (
+              {visibleStoryFrames.length})
+            </Text>
+          </View>
+          <TouchableOpacity onPress={loadSavedPhotos} hitSlop={8}>
+            <RefreshCw size={14} color={Colors.text.copper} />
+          </TouchableOpacity>
         </View>
-        {approvedForStory.length === 0 ? (
+
+        <View style={s.rowGap}>
+          {!isHost ? (
+            <TouchableOpacity
+              style={[s.toggleBtn, storyScope === 'mine' && s.toggleBtnActive]}
+              onPress={() => setStoryScope('mine')}
+            >
+              <Text style={[s.toggleBtnText, storyScope === 'mine' && { color: '#FFF' }]}>
+                My Story
+              </Text>
+            </TouchableOpacity>
+          ) : null}
+          <TouchableOpacity
+            style={[s.toggleBtn, storyScope === 'room' && s.toggleBtnActive]}
+            onPress={() => setStoryScope('room')}
+          >
+            <Text style={[s.toggleBtnText, storyScope === 'room' && { color: '#FFF' }]}>
+              Room Story
+            </Text>
+          </TouchableOpacity>
+          {visibleStoryFrames.length > 0 ? (
+            <TouchableOpacity
+              style={[s.toggleBtn, localReelPlaying && s.reelBtnActive]}
+              onPress={() => {
+                setReelIndex(0);
+                setLocalReelPlaying((prev) => !prev);
+              }}
+            >
+              <Play size={13} color="#FFF" />
+              <Text style={[s.toggleBtnText, { color: '#FFF' }]}>
+                {localReelPlaying ? 'Stop Reel' : 'Play Reel'}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+
+        {visibleStoryFrames.length === 0 ? (
           <Text style={s.emptyInboxText}>
-            Frames will appear here as a funny still-frame story as photos are approved!
+            {storyScope === 'mine'
+              ? 'Your approved photos will compile into your personal story timeline here!'
+              : 'Approved photos from the room will compile into a still-frame story here!'}
           </Text>
         ) : (
-          approvedForStory.map((frame, i) => (
+          visibleStoryFrames.map((frame, i) => (
             <View key={frame.id} style={s.timelineFrame}>
               <View style={s.timelineTop}>
                 <Text style={s.timelineNum}>SCENE {i + 1}</Text>
