@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, SafeAreaView, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View, KeyboardAvoidingView, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
+  Camera,
   CheckCircle2,
   Plus,
   Share2,
@@ -13,6 +14,7 @@ import {
 import { BorderRadius, Colors, Spacing } from '@/constants/theme';
 import { HostIntroBox } from '@/src/components/HostIntroBox';
 import { HostLiveDashboard } from '@/src/components/HostLiveDashboard';
+import { PhotoMadLibModule } from '@/src/components/PhotoMadLibModule';
 import { TapsTonightDrawer } from '@/src/components/TapsTonightDrawer';
 import { TriviaModule } from '@/src/components/TriviaModule';
 import { GAME_SKINS } from '@/src/config/gameSkins';
@@ -64,7 +66,7 @@ export default function EventDetailRoomScreen() {
   const [tapStatus, setTapStatus] = useState('');
   const [completedMissions, setCompletedMissions] = useState<number[]>([]);
   const [tapsDrawerOpen, setTapsDrawerOpen] = useState(false);
-  const [roomMode, setRoomMode] = useState<'social' | 'trivia'>('social');
+  const [roomMode, setRoomMode] = useState<'social' | 'trivia' | 'photos'>('social');
 
   useEffect(() => {
     let eng: CatalystGameEngine | null = null;
@@ -345,7 +347,7 @@ export default function EventDetailRoomScreen() {
             >
               <Zap size={14} color={roomMode === 'social' ? '#FFF' : Colors.text.secondary} />
               <Text style={[s.roomModeText, roomMode === 'social' && s.roomModeTextActive]}>
-                Social Icebreakers
+                Social
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -354,7 +356,16 @@ export default function EventDetailRoomScreen() {
             >
               <Trophy size={14} color={roomMode === 'trivia' ? '#FFF' : Colors.text.secondary} />
               <Text style={[s.roomModeText, roomMode === 'trivia' && s.roomModeTextActive]}>
-                Trivia Arena
+                Trivia
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.roomModeBtn, roomMode === 'photos' && s.roomModeBtnActive]}
+              onPress={() => setRoomMode('photos')}
+            >
+              <Camera size={14} color={roomMode === 'photos' ? '#FFF' : Colors.text.secondary} />
+              <Text style={[s.roomModeText, roomMode === 'photos' && s.roomModeTextActive]}>
+                Photo Story
               </Text>
             </TouchableOpacity>
           </View>
@@ -365,6 +376,15 @@ export default function EventDetailRoomScreen() {
                 eventId={eventId}
                 isHost={true}
                 isTier2Pro={eventData.host_tier === 'tier_2'}
+                currentUserId={currentUserId}
+                currentDisplayName="Host"
+              />
+            </View>
+          ) : roomMode === 'photos' ? (
+            <View style={{ paddingHorizontal: Spacing.md }}>
+              <PhotoMadLibModule
+                eventId={eventId}
+                isHost={true}
                 currentUserId={currentUserId}
                 currentDisplayName="Host"
               />
@@ -446,7 +466,7 @@ export default function EventDetailRoomScreen() {
           >
             <Zap size={14} color={roomMode === 'social' ? '#FFF' : Colors.text.secondary} />
             <Text style={[s.roomModeText, roomMode === 'social' && s.roomModeTextActive]}>
-              Social Icebreakers
+              Social
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -455,7 +475,16 @@ export default function EventDetailRoomScreen() {
           >
             <Trophy size={14} color={roomMode === 'trivia' ? '#FFF' : Colors.text.secondary} />
             <Text style={[s.roomModeText, roomMode === 'trivia' && s.roomModeTextActive]}>
-              Trivia Arena
+              Trivia
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.roomModeBtn, roomMode === 'photos' && s.roomModeBtnActive]}
+            onPress={() => setRoomMode('photos')}
+          >
+            <Camera size={14} color={roomMode === 'photos' ? '#FFF' : Colors.text.secondary} />
+            <Text style={[s.roomModeText, roomMode === 'photos' && s.roomModeTextActive]}>
+              Photo Story
             </Text>
           </TouchableOpacity>
         </View>
@@ -465,6 +494,13 @@ export default function EventDetailRoomScreen() {
             eventId={eventId}
             isHost={false}
             isTier2Pro={eventData.host_tier === 'tier_2'}
+            currentUserId={currentUserId}
+            currentDisplayName={myAttendee?.display_name || 'Guest'}
+          />
+        ) : roomMode === 'photos' ? (
+          <PhotoMadLibModule
+            eventId={eventId}
+            isHost={false}
             currentUserId={currentUserId}
             currentDisplayName={myAttendee?.display_name || 'Guest'}
           />
