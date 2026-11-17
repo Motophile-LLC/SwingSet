@@ -161,8 +161,12 @@ export function TriviaModule({
           .from('trivia_questions')
           .select('id, genre, question, options, correct_index, points, is_custom')
           .eq('status', 'active')
-          .limit(200);
-        if (error || !data || data.length === 0) return;
+          .eq('genre', state.genre)
+          .limit(500);
+        if (error || !data || data.length === 0) {
+          setRemoteBank([]);
+          return;
+        }
 
         const mapped: TriviaQuestion[] = data
           .filter((row: any) => Array.isArray(row.options) && row.options.length === 4)
@@ -181,7 +185,7 @@ export function TriviaModule({
       }
     };
     loadActiveQuestions();
-  }, []);
+  }, [state.genre]);
 
   const genreQuestions = useMemo(() => {
     const base = remoteBank.length > 0 ? remoteBank : CURATED_TRIVIA_BANK;
