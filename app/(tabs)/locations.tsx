@@ -1,160 +1,409 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView } from 'react-native';
-import { MapPin, Navigation, CheckCircle2, ShieldCheck, Sparkles, Award } from 'lucide-react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  StyleSheet,
+  SafeAreaView,
+  TextInput,
+  RefreshControl,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import {
+  Compass,
+  MapPin,
+  Clock,
+  Search,
+  Sparkles,
+  QrCode,
+  ShieldAlert,
+  Trophy,
+  Users,
+} from 'lucide-react-native';
 import { Colors, Spacing, BorderRadius } from '@/constants/theme';
-import { useGame } from '@/context/GameContext';
+import { supabase } from '@/src/lib/supabase';
 
-export interface VenueLocation {
+export type EventCategory =
+  | 'Social Mixer'
+  | 'Singles'
+  | 'Trivia Night'
+  | 'Bar / Pub Crawl'
+  | 'Lifestyle'
+  | 'Corporate / Team';
+
+export type TimeBucket = 'All' | 'Tonight' | 'This Weekend';
+
+export interface NearbyPublicEvent {
   id: string;
-  name: string;
-  neighborhood: string;
-  subtitle: string;
-  vibeRating: string;
+  title: string;
+  category: EventCategory;
+  isLifestyle: boolean;
+  venueName: string;
+  address: string;
+  distanceMiles: number;
+  timeLabel: string;
+  timeBucket: 'Tonight' | 'This Weekend';
   dressCode: string;
-  comfortFeatures: string[];
-  sideQuestTitle: string;
-  sideQuestDesc: string;
+  entryNote: string;
+  description: string;
+  hasTriviaPoints?: boolean;
 }
 
-export const VENUE_LOCATIONS: VenueLocation[] = [
+export const EVENT_CATEGORIES: ('All' | EventCategory)[] = [
+  'All',
+  'Trivia Night',
+  'Social Mixer',
+  'Singles',
+  'Bar / Pub Crawl',
+  'Lifestyle',
+  'Corporate / Team',
+];
+
+const SAMPLE_NEARBY_EVENTS: NearbyPublicEvent[] = [
   {
-    id: 'venue_1',
-    name: 'The Nations Taproom Hub',
-    neighborhood: 'West Nashville',
-    subtitle: 'Casual Craft Cans & Patio Icebreaker Kickoff',
-    vibeRating: '★ 4.9 Kickoff',
-    dressCode: 'Rugged Refined',
-    comfortFeatures: ['Patio Mingling', 'Easy Bus Parking', 'Food Trucks'],
-    sideQuestTitle: 'Patio Kickoff Toast',
-    sideQuestDesc: 'Meet 2 new attendees at patio bar and tap badges.',
+    id: 'pub_trivia_1',
+    title: '90s & Pop Culture Trivia Night',
+    category: 'Trivia Night',
+    isLifestyle: false,
+    venueName: 'The Nations Taproom',
+    address: '5108 Centennial Blvd, Nashville, TN 37209',
+    distanceMiles: 0.8,
+    timeLabel: 'Tonight • 7:30 PM',
+    timeBucket: 'Tonight',
+    dressCode: 'Casual',
+    entryNote: 'Check in at table via Door Code or NFC Tap',
+    description:
+      'Team up with your table or play solo! Captain locks in the final team answer each round for live leaderboard points.',
+    hasTriviaPoints: true,
   },
   {
-    id: 'venue_2',
-    name: 'Wedgewood-Houston Social Lounge',
-    neighborhood: 'WeHo District',
-    subtitle: 'Cocktail Speakeasy & Low-Light Vibe Check Stop',
-    vibeRating: '★ 4.8 Speakeasy',
+    id: 'pub_mixer_1',
+    title: 'Friday Patio Icebreaker Mixer',
+    category: 'Social Mixer',
+    isLifestyle: false,
+    venueName: 'Wedgewood Social Lounge',
+    address: '1214 Wedgewood Ave, Nashville, TN 37203',
+    distanceMiles: 1.4,
+    timeLabel: 'Tonight • 8:30 PM',
+    timeBucket: 'Tonight',
+    dressCode: 'Smart Casual',
+    entryNote: 'Check in at door via 6-digit Code or QR/NFC Tap',
+    description:
+      'Low-pressure guided icebreakers and photo challenges designed to get everyone off their phones and talking.',
+  },
+  {
+    id: 'pub_singles_1',
+    title: 'East Side Singles Speed-Mingle',
+    category: 'Singles',
+    isLifestyle: false,
+    venueName: 'Five Points Cocktail Parlor',
+    address: '1012 Woodland St, Nashville, TN 37206',
+    distanceMiles: 2.1,
+    timeLabel: 'Sat • 8:00 PM',
+    timeBucket: 'This Weekend',
     dressCode: 'Upscale Casual',
-    comfortFeatures: ['Private Booths', 'Low-Light Mood', 'Craft Cocktails'],
-    sideQuestTitle: 'Speakeasy Vibe Check',
-    sideQuestDesc: 'Find a couple at velvet lounge & compare drinks.',
+    entryNote: 'Check in at host stand via Code or NFC Tap',
+    description:
+      'Timed mingling rounds with mutual-only contact exchange at the end of the night.',
   },
   {
-    id: 'venue_3',
-    name: 'Printers Alley Velvet Parlor',
-    neighborhood: 'Downtown Nashville',
-    subtitle: 'Downtown Private Mezzanine — Couple vs. Couple Side Quest',
-    vibeRating: '★ 4.9 Velvet Parlor',
-    dressCode: 'Velvet Chic',
-    comfortFeatures: ['Couple vs Couple Zone', 'Curtained Alcoves', 'VIP Access'],
-    sideQuestTitle: 'Parlor Duo Quest',
-    sideQuestDesc: 'Pair up for 2v2 trivia mini-game on private mezzanine.',
+    id: 'pub_lifestyle_1',
+    title: 'Velvet Lounge Lifestyle Meet & Greet',
+    category: 'Lifestyle',
+    isLifestyle: true,
+    venueName: 'Printers Alley Mezzanine',
+    address: '215 Printers Alley, Nashville, TN 37201',
+    distanceMiles: 2.6,
+    timeLabel: 'Sat • 9:30 PM',
+    timeBucket: 'This Weekend',
+    dressCode: 'Cocktail / Velvet Chic',
+    entryNote: 'Check in at door via Venue Code or NFC Tap',
+    description:
+      'Welcoming, consent-forward social mixer for couples and singles in the lifestyle community. Strictly social & game-focused.',
   },
   {
-    id: 'venue_4',
-    name: 'Late-Night Private Oasis',
-    neighborhood: 'Afterhours Club',
-    subtitle: 'Members-Only Lifestyle Mixer & Mutual Green-Light Lounge',
-    vibeRating: '★ 5.0 Private Oasis',
-    dressCode: 'Afterhours Elegant',
-    comfortFeatures: ['Green-Light Lounge', 'Members-Only', 'Live DJ Patio'],
-    sideQuestTitle: 'Green-Light Check-In',
-    sideQuestDesc: 'Privately toggle green lights & check-in for late matches.',
+    id: 'pub_crawl_1',
+    title: 'Midtown 3-Stop Excursion Crawl',
+    category: 'Bar / Pub Crawl',
+    isLifestyle: false,
+    venueName: 'Division St. Starting Hub',
+    address: '1804 Division St, Nashville, TN 37203',
+    distanceMiles: 1.9,
+    timeLabel: 'Sat • 7:00 PM',
+    timeBucket: 'This Weekend',
+    dressCode: 'Casual',
+    entryNote: 'Check in at Stop 1 via Code or NFC Tap',
+    description:
+      'Multi-venue route with timed transitions and a fresh icebreaker game at every stop.',
   },
 ];
 
-export default function LocationsTabScreen() {
-  const { checkedInVenues, checkInVenue } = useGame();
-  const [activeNotice, setActiveNotice] = useState<string | null>(null);
+export default function NearbyTabScreen() {
+  const router = useRouter();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<'All' | EventCategory>('All');
+  const [selectedTime, setSelectedTime] = useState<TimeBucket>('All');
+  const [showLifestyle, setShowLifestyle] = useState(true);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [liveEvents, setLiveEvents] = useState<NearbyPublicEvent[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const handleVenueCheckIn = (venue: VenueLocation) => {
-    const newlyAdded = checkInVenue(venue.id);
-    if (newlyAdded) {
-      setActiveNotice(`Checked in at ${venue.name}! +200 pts unlocked.`);
-    } else {
-      setActiveNotice(`Already checked in at ${venue.name}. Timeline updated.`);
+  const loadLivePublicEvents = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('events')
+        .select('id, title, description, dress_code, is_lifestyle, category, venue_name, venue_address, starts_at')
+        .eq('is_public', true)
+        .eq('status', 'active')
+        .order('starts_at', { ascending: true })
+        .limit(25);
+
+      if (error || !data) return;
+
+      const mapped: NearbyPublicEvent[] = data.map((row: any) => {
+        const cat: EventCategory = EVENT_CATEGORIES.includes(row.category)
+          ? row.category
+          : row.is_lifestyle
+          ? 'Lifestyle'
+          : 'Social Mixer';
+        return {
+          id: row.id,
+          title: row.title,
+          category: cat,
+          isLifestyle: Boolean(row.is_lifestyle || cat === 'Lifestyle'),
+          venueName: row.venue_name || 'Live Hosted Venue',
+          address: row.venue_address || 'Check in at venue for details',
+          distanceMiles: 0.5,
+          timeLabel: 'Live Now',
+          timeBucket: 'Tonight',
+          dressCode: row.dress_code || 'Casual',
+          entryNote: 'Check in at venue via Door Code or NFC/QR Tap',
+          description: row.description || 'Live public SwingSet event.',
+          hasTriviaPoints: cat === 'Trivia Night',
+        };
+      });
+      setLiveEvents(mapped);
+    } catch {
+      // Silently keep sample events if offline or migration 004 not yet applied
     }
+  }, []);
+
+  useEffect(() => {
+    loadLivePublicEvents();
+  }, [loadLivePublicEvents]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadLivePublicEvents();
+    setRefreshing(false);
+  };
+
+  const allEvents = useMemo(
+    () => [...liveEvents, ...SAMPLE_NEARBY_EVENTS],
+    [liveEvents]
+  );
+
+  const filteredEvents = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return allEvents.filter((ev) => {
+      if (!showLifestyle && ev.isLifestyle) return false;
+      if (selectedCategory !== 'All' && ev.category !== selectedCategory) return false;
+      if (selectedTime !== 'All' && ev.timeBucket !== selectedTime) return false;
+      if (q) {
+        const hay = `${ev.title} ${ev.venueName} ${ev.address} ${ev.category}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    }).sort((a, b) => a.distanceMiles - b.distanceMiles);
+  }, [allEvents, searchQuery, selectedCategory, selectedTime, showLifestyle]);
+
+  const handleCheckInPress = (ev: NearbyPublicEvent) => {
+    setNotice(`Ready to join "${ev.title}" — enter the venue Door Code or tap NFC at ${ev.venueName}.`);
+    router.push(`/event/${ev.id}/checkin` as any);
   };
 
   return (
     <SafeAreaView style={s.container}>
-      <ScrollView contentContainerStyle={s.scroll}>
+      <ScrollView
+        contentContainerStyle={s.scroll}
+        keyboardShouldPersistTaps="handled"
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={Colors.accent.copper}
+          />
+        }
+      >
+        {/* Header */}
         <View style={s.headerCard}>
           <View style={s.headerTitleRow}>
-            <MapPin size={22} color={Colors.accent.copper} />
-            <Text style={s.headerTitle}>Nashville Excursion Crawl</Text>
+            <Compass size={22} color={Colors.accent.copper} />
+            <Text style={s.headerTitle}>Nearby Public Events</Text>
           </View>
           <Text style={s.headerDesc}>
-            Curated excursion stops & lifestyle-friendly venues with reserved access and live NFC side quests.
+            Looking for something to do? Browse public events around you, head to the address, and check in at the venue with a door code or NFC/QR tap.
           </Text>
+
+          {/* Search */}
+          <View style={s.searchBox}>
+            <Search size={16} color={Colors.text.muted} />
+            <TextInput
+              style={s.searchInput}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search venue, event, or neighborhood..."
+              placeholderTextColor={Colors.text.muted}
+            />
+          </View>
+
+          {/* Time & Lifestyle Quick Toggles */}
+          <View style={s.quickFilterRow}>
+            <View style={s.timePillGroup}>
+              {(['All', 'Tonight', 'This Weekend'] as TimeBucket[]).map((bucket) => {
+                const active = selectedTime === bucket;
+                return (
+                  <TouchableOpacity
+                    key={bucket}
+                    style={[s.timePill, active && s.timePillActive]}
+                    onPress={() => setSelectedTime(bucket)}
+                  >
+                    <Text style={[s.timePillText, active && s.timePillTextActive]}>{bucket}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <TouchableOpacity
+              style={[s.lifestyleToggle, !showLifestyle && s.lifestyleToggleOff]}
+              onPress={() => setShowLifestyle((prev) => !prev)}
+            >
+              <Text style={[s.lifestyleToggleText, !showLifestyle && s.lifestyleToggleTextOff]}>
+                {showLifestyle ? 'Lifestyle: Shown' : 'Lifestyle: Hidden'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {activeNotice ? (
+        {/* Category Filter Strip */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={s.categoryStrip}
+        >
+          {EVENT_CATEGORIES.map((cat) => {
+            const active = selectedCategory === cat;
+            const isLifestyleChip = cat === 'Lifestyle';
+            return (
+              <TouchableOpacity
+                key={cat}
+                style={[
+                  s.categoryChip,
+                  active && s.categoryChipActive,
+                  isLifestyleChip && active && s.categoryChipLifestyleActive,
+                ]}
+                onPress={() => {
+                  setSelectedCategory(cat);
+                  if (isLifestyleChip && !showLifestyle) setShowLifestyle(true);
+                }}
+              >
+                <Text
+                  style={[
+                    s.categoryChipText,
+                    active && s.categoryChipTextActive,
+                  ]}
+                >
+                  {cat}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
+        {notice ? (
           <View style={s.noticeCard}>
             <Sparkles size={16} color={Colors.accent.emerald} />
-            <Text style={s.noticeText}>{activeNotice}</Text>
+            <Text style={s.noticeText}>{notice}</Text>
           </View>
         ) : null}
 
-        {VENUE_LOCATIONS.map((v, i) => {
-          const isDone = checkedInVenues.includes(v.id);
-          return (
-            <View key={v.id} style={[s.venueCard, isDone && s.venueCardChecked]}>
-              <View style={s.stopBadgeRow}>
-                <View style={s.stopBadge}><Text style={s.stopBadgeText}>STOP {i + 1}</Text></View>
-                <Text style={s.neighborhoodText}>{v.neighborhood}</Text>
-                {isDone && (
-                  <View style={s.checkedBadge}>
-                    <CheckCircle2 size={12} color={Colors.accent.emerald} />
-                    <Text style={s.checkedText}>Checked In</Text>
-                  </View>
-                )}
+        {/* Event List */}
+        {filteredEvents.length === 0 ? (
+          <View style={s.emptyCard}>
+            <Users size={24} color={Colors.text.muted} />
+            <Text style={s.emptyTitle}>No matching public events nearby</Text>
+            <Text style={s.emptyDesc}>
+              Try clearing your search or switching category/time filters.
+            </Text>
+          </View>
+        ) : (
+          filteredEvents.map((ev) => (
+            <View
+              key={ev.id}
+              style={[s.eventCard, ev.isLifestyle && s.eventCardLifestyle]}
+            >
+              {/* Top Badges Row */}
+              <View style={s.badgeRow}>
+                <View
+                  style={[
+                    s.categoryBadge,
+                    ev.isLifestyle && s.lifestyleBadge,
+                  ]}
+                >
+                  {ev.isLifestyle ? (
+                    <ShieldAlert size={11} color="#FFB4C2" />
+                  ) : ev.hasTriviaPoints ? (
+                    <Trophy size={11} color={Colors.text.copper} />
+                  ) : null}
+                  <Text
+                    style={[
+                      s.categoryBadgeText,
+                      ev.isLifestyle && s.lifestyleBadgeText,
+                    ]}
+                  >
+                    {ev.category.toUpperCase()}
+                  </Text>
+                </View>
+
+                <Text style={s.distanceText}>{ev.distanceMiles.toFixed(1)} mi away</Text>
               </View>
 
-              <Text style={s.venueName}>{v.name}</Text>
-              <Text style={s.venueSub}>{v.subtitle}</Text>
+              <Text style={s.eventTitle}>{ev.title}</Text>
 
-              <View style={s.metaGrid}>
-                <View style={s.metaItem}>
-                  <Text style={s.metaLabel}>VIBE RATING</Text>
-                  <Text style={s.metaValue}>{v.vibeRating}</Text>
-                </View>
-                <View style={s.metaItem}>
-                  <Text style={s.metaLabel}>DRESS CODE</Text>
-                  <Text style={s.metaValue}>{v.dressCode}</Text>
+              {/* Venue & Address */}
+              <View style={s.metaRow}>
+                <MapPin size={14} color={Colors.accent.copper} />
+                <View style={{ flex: 1 }}>
+                  <Text style={s.venueName}>{ev.venueName}</Text>
+                  <Text style={s.addressText}>{ev.address}</Text>
                 </View>
               </View>
 
-              <Text style={s.sectionHeader}>COUPLE & LIFESTYLE COMFORT FEATURES</Text>
-              <View style={s.featureGrid}>
-                {v.comfortFeatures.map((f) => (
-                  <View key={f} style={s.featureChip}>
-                    <ShieldCheck size={12} color={Colors.accent.copper} />
-                    <Text style={s.featureText}>{f}</Text>
-                  </View>
-                ))}
+              <View style={s.metaRow}>
+                <Clock size={14} color={Colors.text.secondary} />
+                <Text style={s.timeText}>
+                  {ev.timeLabel} • Dress: {ev.dressCode}
+                </Text>
               </View>
 
-              <View style={s.sideQuestCard}>
-                <View style={s.sideQuestHeader}>
-                  <Award size={16} color={Colors.accent.copper} />
-                  <Text style={s.sideQuestTitle}>Side Quest: {v.sideQuestTitle}</Text>
-                </View>
-                <Text style={s.sideQuestDesc}>{v.sideQuestDesc}</Text>
+              <Text style={s.eventDesc}>{ev.description}</Text>
+
+              <View style={s.entryBox}>
+                <QrCode size={14} color={Colors.accent.emerald} />
+                <Text style={s.entryText}>{ev.entryNote}</Text>
               </View>
 
               <TouchableOpacity
-                style={[s.checkInBtn, isDone && s.checkInBtnDone]}
-                onPress={() => handleVenueCheckIn(v)}
+                style={s.checkInBtn}
+                onPress={() => handleCheckInPress(ev)}
               >
-                <Navigation size={16} color="#FFF" style={{ marginRight: 6 }} />
-                <Text style={s.checkInBtnText}>
-                  {isDone ? 'Checked In — Re-verify (+200 pts)' : 'Check-In Here via NFC / Unlock Venue (+200 pts)'}
-                </Text>
+                <QrCode size={16} color="#FFFFFF" />
+                <Text style={s.checkInBtnText}>Join at Venue (Code / Tap)</Text>
               </TouchableOpacity>
             </View>
-          );
-        })}
+          ))
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -163,35 +412,196 @@ export default function LocationsTabScreen() {
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background.black },
   scroll: { padding: Spacing.md, paddingBottom: Spacing.xl },
-  headerCard: { backgroundColor: Colors.background.darkSteel, borderWidth: 1, borderColor: Colors.border.steelGray, borderRadius: BorderRadius.md, padding: Spacing.md, marginBottom: Spacing.md },
+  headerCard: {
+    backgroundColor: Colors.background.darkSteel,
+    borderWidth: 1,
+    borderColor: Colors.border.steelGray,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
   headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
   headerTitle: { fontSize: 18, fontWeight: '800', color: Colors.text.primary },
-  headerDesc: { fontSize: 12, color: Colors.text.secondary, lineHeight: 17 },
-  noticeCard: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(46, 175, 125, 0.15)', borderWidth: 1, borderColor: Colors.accent.emerald, borderRadius: BorderRadius.md, padding: 12, marginBottom: Spacing.md },
-  noticeText: { color: Colors.accent.emerald, fontWeight: '700', fontSize: 13, flex: 1 },
-  venueCard: { backgroundColor: Colors.background.darkSteel, borderWidth: 1, borderColor: Colors.border.steelGray, borderRadius: BorderRadius.md, padding: Spacing.md, marginBottom: Spacing.lg },
-  venueCardChecked: { borderColor: Colors.accent.emerald, backgroundColor: '#121A17' },
-  stopBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
-  stopBadge: { backgroundColor: Colors.background.card, borderWidth: 1, borderColor: Colors.accent.copper, paddingHorizontal: 8, paddingVertical: 2, borderRadius: BorderRadius.sm },
-  stopBadgeText: { color: Colors.accent.copper, fontSize: 10, fontWeight: '800' },
-  neighborhoodText: { fontSize: 12, color: Colors.text.secondary, fontWeight: '600' },
-  checkedBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 'auto', backgroundColor: 'rgba(46, 175, 125, 0.2)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: BorderRadius.sm },
-  checkedText: { color: Colors.accent.emerald, fontSize: 11, fontWeight: '700' },
-  venueName: { fontSize: 18, fontWeight: '800', color: Colors.text.primary, marginBottom: 2 },
-  venueSub: { fontSize: 12, color: Colors.text.secondary, marginBottom: 12, lineHeight: 16 },
-  metaGrid: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  metaItem: { flex: 1, backgroundColor: Colors.background.inputBg, borderWidth: 1, borderColor: Colors.border.steelGray, borderRadius: BorderRadius.sm, padding: 8 },
-  metaLabel: { fontSize: 9, fontWeight: '800', color: Colors.accent.copper, letterSpacing: 0.5 },
-  metaValue: { fontSize: 12, fontWeight: '700', color: Colors.text.primary, marginTop: 2 },
-  sectionHeader: { fontSize: 10, fontWeight: '800', color: Colors.text.secondary, letterSpacing: 0.5, marginBottom: 6 },
-  featureGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
-  featureChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.background.inputBg, borderWidth: 1, borderColor: Colors.border.steelGray, borderRadius: BorderRadius.full, paddingHorizontal: 10, paddingVertical: 4 },
-  featureText: { color: Colors.text.primary, fontSize: 11, fontWeight: '600' },
-  sideQuestCard: { backgroundColor: 'rgba(200, 109, 81, 0.12)', borderWidth: 1, borderColor: Colors.accent.copper, borderRadius: BorderRadius.md, padding: 10, marginBottom: 12 },
-  sideQuestHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
-  sideQuestTitle: { color: Colors.accent.copper, fontSize: 12, fontWeight: '800' },
-  sideQuestDesc: { color: Colors.text.primary, fontSize: 12, lineHeight: 16 },
-  checkInBtn: { backgroundColor: Colors.accent.copper, borderRadius: BorderRadius.md, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  checkInBtnDone: { backgroundColor: '#217A5A' },
-  checkInBtnText: { color: '#FFF', fontSize: 13, fontWeight: '800' },
+  headerDesc: { fontSize: 12, color: Colors.text.secondary, lineHeight: 17, marginBottom: 12 },
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: Colors.background.inputBg,
+    borderWidth: 1,
+    borderColor: Colors.border.steelGray,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 10,
+  },
+  searchInput: { flex: 1, color: Colors.text.primary, fontSize: 13, padding: 0 },
+  quickFilterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  timePillGroup: { flexDirection: 'row', gap: 6 },
+  timePill: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.background.card,
+    borderWidth: 1,
+    borderColor: Colors.border.steelGray,
+  },
+  timePillActive: {
+    backgroundColor: Colors.accent.copper,
+    borderColor: Colors.accent.copper,
+  },
+  timePillText: { fontSize: 11, fontWeight: '700', color: Colors.text.secondary },
+  timePillTextActive: { color: '#FFFFFF' },
+  lifestyleToggle: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: Colors.accent.crimson,
+    backgroundColor: 'rgba(255, 92, 122, 0.12)',
+  },
+  lifestyleToggleOff: {
+    borderColor: Colors.border.steelGray,
+    backgroundColor: Colors.background.card,
+  },
+  lifestyleToggleText: { fontSize: 11, fontWeight: '700', color: '#FFB4C2' },
+  lifestyleToggleTextOff: { color: Colors.text.muted },
+  categoryStrip: {
+    paddingVertical: 8,
+    gap: 8,
+    marginBottom: Spacing.sm,
+  },
+  categoryChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.background.card,
+    borderWidth: 1,
+    borderColor: Colors.border.steelGray,
+  },
+  categoryChipActive: {
+    backgroundColor: Colors.accent.copper,
+    borderColor: Colors.accent.copper,
+  },
+  categoryChipLifestyleActive: {
+    backgroundColor: Colors.accent.crimson,
+    borderColor: Colors.accent.crimson,
+  },
+  categoryChipText: { fontSize: 12, fontWeight: '700', color: Colors.text.secondary },
+  categoryChipTextActive: { color: '#FFFFFF' },
+  noticeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(52, 211, 153, 0.14)',
+    borderWidth: 1,
+    borderColor: Colors.accent.emerald,
+    borderRadius: BorderRadius.md,
+    padding: 12,
+    marginBottom: Spacing.md,
+  },
+  noticeText: { color: Colors.accent.emerald, fontWeight: '700', fontSize: 12, flex: 1 },
+  emptyCard: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.xl,
+    backgroundColor: Colors.background.darkSteel,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border.steelGray,
+    gap: 6,
+  },
+  emptyTitle: { fontSize: 15, fontWeight: '700', color: Colors.text.primary },
+  emptyDesc: { fontSize: 12, color: Colors.text.secondary, textAlign: 'center' },
+  eventCard: {
+    backgroundColor: Colors.background.darkSteel,
+    borderWidth: 1,
+    borderColor: Colors.border.steelGray,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  eventCardLifestyle: {
+    borderColor: 'rgba(255, 92, 122, 0.45)',
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  categoryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: Colors.background.card,
+    borderWidth: 1,
+    borderColor: Colors.accent.copper,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.sm,
+  },
+  lifestyleBadge: {
+    borderColor: Colors.accent.crimson,
+    backgroundColor: 'rgba(255, 92, 122, 0.14)',
+  },
+  categoryBadgeText: {
+    color: Colors.text.copper,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  lifestyleBadgeText: {
+    color: '#FFB4C2',
+  },
+  distanceText: { fontSize: 12, fontWeight: '700', color: Colors.text.secondary },
+  eventTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: Colors.text.primary,
+    marginBottom: 8,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 6,
+  },
+  venueName: { fontSize: 13, fontWeight: '700', color: Colors.text.primary },
+  addressText: { fontSize: 12, color: Colors.text.secondary, marginTop: 1 },
+  timeText: { fontSize: 12, fontWeight: '600', color: Colors.text.secondary, flex: 1 },
+  eventDesc: {
+    fontSize: 13,
+    color: Colors.text.secondary,
+    lineHeight: 18,
+    marginTop: 4,
+    marginBottom: 10,
+  },
+  entryBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.background.card,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    marginBottom: 12,
+  },
+  entryText: { fontSize: 12, fontWeight: '600', color: Colors.accent.emerald, flex: 1 },
+  checkInBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.accent.copper,
+    paddingVertical: 12,
+    borderRadius: BorderRadius.sm,
+  },
+  checkInBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
 });

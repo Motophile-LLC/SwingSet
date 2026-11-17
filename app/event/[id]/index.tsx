@@ -6,12 +6,15 @@ import {
   Plus,
   Share2,
   Sparkles,
+  Trophy,
   Users,
   Zap,
 } from 'lucide-react-native';
 import { BorderRadius, Colors, Spacing } from '@/constants/theme';
+import { HostIntroBox } from '@/src/components/HostIntroBox';
 import { HostLiveDashboard } from '@/src/components/HostLiveDashboard';
 import { TapsTonightDrawer } from '@/src/components/TapsTonightDrawer';
+import { TriviaModule } from '@/src/components/TriviaModule';
 import { GAME_SKINS } from '@/src/config/gameSkins';
 import { CatalystGameEngine } from '@/src/engine/catalystGameEngine';
 import { supabase } from '@/src/lib/supabase';
@@ -61,6 +64,7 @@ export default function EventDetailRoomScreen() {
   const [tapStatus, setTapStatus] = useState('');
   const [completedMissions, setCompletedMissions] = useState<number[]>([]);
   const [tapsDrawerOpen, setTapsDrawerOpen] = useState(false);
+  const [roomMode, setRoomMode] = useState<'social' | 'trivia'>('social');
 
   useEffect(() => {
     let eng: CatalystGameEngine | null = null;
@@ -92,6 +96,9 @@ export default function EventDetailRoomScreen() {
         return;
       }
       setEventData(ev);
+      if (ev.category === 'Trivia Night') {
+        setRoomMode('trivia');
+      }
       const hostFlag = ev.owner_id === uid;
       setIsHost(hostFlag);
 
@@ -330,6 +337,40 @@ export default function EventDetailRoomScreen() {
             </View>
           </View>
 
+          {/* Mode Switcher: Social Icebreakers vs. Trivia Arena */}
+          <View style={s.roomModeBar}>
+            <TouchableOpacity
+              style={[s.roomModeBtn, roomMode === 'social' && s.roomModeBtnActive]}
+              onPress={() => setRoomMode('social')}
+            >
+              <Zap size={14} color={roomMode === 'social' ? '#FFF' : Colors.text.secondary} />
+              <Text style={[s.roomModeText, roomMode === 'social' && s.roomModeTextActive]}>
+                Social Icebreakers
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.roomModeBtn, roomMode === 'trivia' && s.roomModeBtnActive]}
+              onPress={() => setRoomMode('trivia')}
+            >
+              <Trophy size={14} color={roomMode === 'trivia' ? '#FFF' : Colors.text.secondary} />
+              <Text style={[s.roomModeText, roomMode === 'trivia' && s.roomModeTextActive]}>
+                Trivia Arena
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {roomMode === 'trivia' ? (
+            <View style={{ paddingHorizontal: Spacing.md }}>
+              <TriviaModule
+                eventId={eventId}
+                isHost={true}
+                isTier2Pro={eventData.host_tier === 'tier_2'}
+                currentUserId={currentUserId}
+                currentDisplayName="Host"
+              />
+            </View>
+          ) : (
+            <>
           {/* Add Any of the 5 SwingSet Games */}
           <View style={s.builderCard}>
             <Text style={s.builderTitle}>ADD HOST-INITIATED GAME ROUND</Text>
@@ -351,6 +392,12 @@ export default function EventDetailRoomScreen() {
               })}
             </ScrollView>
             <Text style={s.skinTagline}>{GAME_SKINS[selectedSkin].tagline}</Text>
+            <HostIntroBox
+              gameTitle={GAME_SKINS[selectedSkin].name}
+              readAloudScript={GAME_SKINS[selectedSkin].hostIntro.readAloudScript}
+              howToPlay={GAME_SKINS[selectedSkin].hostIntro.howToPlay}
+              defaultExpanded={true}
+            />
             <TouchableOpacity
               style={s.addRoundBtn}
               onPress={handleAddGameBlock}
@@ -374,6 +421,8 @@ export default function EventDetailRoomScreen() {
             onRateBlock={handleRateBlock}
             onRemoveAttendeeConfirmed={handleRemoveAttendeeConfirmed}
           />
+            </>
+          )}
         </ScrollView>
       </SafeAreaView>
     );
@@ -390,7 +439,36 @@ export default function EventDetailRoomScreen() {
           </Text>
         </View>
 
-        {myAssignment && liveRound ? (
+        <View style={s.roomModeBar}>
+          <TouchableOpacity
+            style={[s.roomModeBtn, roomMode === 'social' && s.roomModeBtnActive]}
+            onPress={() => setRoomMode('social')}
+          >
+            <Zap size={14} color={roomMode === 'social' ? '#FFF' : Colors.text.secondary} />
+            <Text style={[s.roomModeText, roomMode === 'social' && s.roomModeTextActive]}>
+              Social Icebreakers
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.roomModeBtn, roomMode === 'trivia' && s.roomModeBtnActive]}
+            onPress={() => setRoomMode('trivia')}
+          >
+            <Trophy size={14} color={roomMode === 'trivia' ? '#FFF' : Colors.text.secondary} />
+            <Text style={[s.roomModeText, roomMode === 'trivia' && s.roomModeTextActive]}>
+              Trivia Arena
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {roomMode === 'trivia' ? (
+          <TriviaModule
+            eventId={eventId}
+            isHost={false}
+            isTier2Pro={eventData.host_tier === 'tier_2'}
+            currentUserId={currentUserId}
+            currentDisplayName={myAttendee?.display_name || 'Guest'}
+          />
+        ) : myAssignment && liveRound ? (
           <View style={s.liveCard}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Zap size={16} color={Colors.accent.copper} />
@@ -421,14 +499,55 @@ export default function EventDetailRoomScreen() {
               </TouchableOpacity>
             </View>
             {tapStatus ? <Text style={s.tapFeedback}>{tapStatus}</Text> : null}
+
+            {GAME_SKINS[liveRound.skin_id] ? (
+              <HostIntroBox
+                gameTitle={`How to Play: ${GAME_SKINS[liveRound.skin_id].name}`}
+                readAloudScript={GAME_SKINS[liveRound.skin_id].tagline}
+                howToPlay={GAME_SKINS[liveRound.skin_id].hostIntro.howToPlay}
+                defaultExpanded={false}
+              />
+            ) : null}
           </View>
         ) : (
           <View style={s.emptyCard}>
             <Sparkles size={24} color={Colors.accent.copper} />
             <Text style={s.emptyTitle}>Checked In & Mingling</Text>
             <Text style={s.emptySub}>
-              No competitive timers running. Enjoy optional Arrival Mini-Missions below until your host launches a live round.
+              No competitive timers running. Read how the next game works below while you mingle!
             </Text>
+
+            {(() => {
+              const nextBlock = blocks.find(
+                (b) => b.state === 'announced' || b.state === 'planned'
+              );
+              const nextSkinId = nextBlock?.config?.skin_id as GameSkinId | undefined;
+              const nextSkin = nextSkinId && GAME_SKINS[nextSkinId] ? GAME_SKINS[nextSkinId] : null;
+              return (
+                <View style={s.guideCard}>
+                  <Text style={s.guideHeader}>
+                    {nextSkin ? `UP NEXT: ${nextSkin.name.toUpperCase()}` : 'HOW LIVE GAMES WORK'}
+                  </Text>
+                  <Text style={s.guideTagline}>
+                    {nextSkin
+                      ? nextSkin.tagline
+                      : 'When your host launches a round, every phone receives a live role and target.'}
+                  </Text>
+                  {(nextSkin
+                    ? nextSkin.hostIntro.howToPlay
+                    : [
+                        'Check your screen when the round starts to see your role or matching target.',
+                        'Find your match in the room and tap phones (NFC) or enter their 3-char code.',
+                        'Once paired, use the on-screen Mingle prompt to start a fun conversation!',
+                      ]
+                  ).map((step, i) => (
+                    <Text key={i} style={s.guideStep}>
+                      {i + 1}. {step}
+                    </Text>
+                  ))}
+                </View>
+              );
+            })()}
 
             <View style={s.missionList}>
               <Text style={s.missionHeader}>OPTIONAL ARRIVAL MINI-MISSIONS (NO POINTS)</Text>
@@ -628,4 +747,55 @@ const s = StyleSheet.create({
     alignItems: 'center',
   },
   backBtnText: { color: Colors.text.secondary, fontWeight: '800', fontSize: 14 },
+  roomModeBar: {
+    flexDirection: 'row',
+    gap: 8,
+    marginHorizontal: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
+  roomModeBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: Colors.background.darkSteel,
+    borderWidth: 1,
+    borderColor: Colors.border.steelGray,
+    borderRadius: BorderRadius.md,
+    paddingVertical: 10,
+  },
+  roomModeBtnActive: {
+    backgroundColor: Colors.accent.copper,
+    borderColor: Colors.accent.copper,
+  },
+  roomModeText: { color: Colors.text.secondary, fontSize: 12, fontWeight: '800' },
+  roomModeTextActive: { color: '#FFFFFF' },
+  guideCard: {
+    width: '100%',
+    backgroundColor: Colors.background.card,
+    borderWidth: 1,
+    borderColor: Colors.accent.copper,
+    borderRadius: BorderRadius.md,
+    padding: 12,
+    gap: 6,
+    marginTop: 4,
+  },
+  guideHeader: {
+    color: Colors.text.copper,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  guideTagline: {
+    color: Colors.text.primary,
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 18,
+  },
+  guideStep: {
+    color: Colors.text.secondary,
+    fontSize: 12,
+    lineHeight: 17,
+  },
 });

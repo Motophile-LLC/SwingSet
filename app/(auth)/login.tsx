@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -11,13 +12,14 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import Constants from 'expo-constants';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import Svg, { Path } from 'react-native-svg';
 import { AlertCircle, Key, LogIn, ShieldCheck, User } from 'lucide-react-native';
 import { BorderRadius, Colors, Spacing, Typography } from '@/constants/theme';
 import { useUser } from '@/context/UserContext';
-import { supabase } from '@/src/lib/supabase';
+import { extractAuthParam, getOAuthRedirectUrl, supabase } from '@/src/lib/supabase';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -55,12 +57,6 @@ function AppleLogo({ size = 20, color = '#FFFFFF' }: { size?: number; color?: st
   );
 }
 
-function extractParam(url: string, key: string): string | null {
-  const regex = new RegExp(`[?&#]${key}=([^&#]+)`);
-  const match = url.match(regex);
-  return match ? decodeURIComponent(match[1]) : null;
-}
-
 export default function LoginScreen() {
   const router = useRouter();
   const { unlockSession, refreshProfileFromSupabase } = useUser();
@@ -69,6 +65,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [activeProvider, setActiveProvider] = useState<'google' | 'apple' | 'email' | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
+  const isHandlingCallbackRef = useRef(false);
 
   const routeAfterAuth = async (_userId: string) => {
     unlockSession();
@@ -82,15 +79,28 @@ export default function LoginScreen() {
   };
 
   const createSessionFromUrl = async (url: string) => {
+    if (isHandlingCallbackRef.current) return;
+    isHandlingCallbackRef.current = true;
     try {
-      const errorDescription = extractParam(url, 'error_description');
+      const errorDescription =
+        extractAuthParam(url, 'error_description') || extractAuthParam(url, 'error');
       if (errorDescription) {
         setErrorMsg(errorDescription.replace(/\+/g, ' '));
         setActiveProvider(null);
         return;
       }
 
-      const code = extractParam(url, 'code');
+      // If another listener (e.g. auth/callback.tsx) already established the session, route immediately
+      const {
+        data: { session: existingSession },
+      } = await supabase.auth.getSession();
+      if (existingSession?.user) {
+        setActiveProvider(null);
+        await routeAfterAuth(existingSession.user.id);
+        return;
+      }
+
+      const code = extractAuthParam(url, 'code');
       if (code) {
         const { data, error } = await supabase.auth.exchangeCodeForSession(code);
         if (error) {
@@ -105,8 +115,8 @@ export default function LoginScreen() {
         }
       }
 
-      const accessToken = extractParam(url, 'access_token');
-      const refreshToken = extractParam(url, 'refresh_token');
+      const accessToken = extractAuthParam(url, 'access_token');
+      const refreshToken = extractAuthParam(url, 'refresh_token');
       if (accessToken && refreshToken) {
         const { data, error } = await supabase.auth.setSession({
           access_token: accessToken,
@@ -125,13 +135,25 @@ export default function LoginScreen() {
     } catch (err: any) {
       setActiveProvider(null);
       setErrorMsg(err?.message || 'OAuth callback failed.');
+    } finally {
+      isHandlingCallbackRef.current = false;
     }
   };
 
   useEffect(() => {
     const sub = Linking.addEventListener('url', ({ url }) => {
-      if (url && (url.includes('access_token=') || url.includes('code='))) {
-        WebBrowser.dismissBrowser();
+      if (
+        url &&
+        (url.includes('access_token=') ||
+          url.includes('code=') ||
+          url.includes('error=') ||
+          url.includes('error_description='))
+      ) {
+        if (Platform.OS === 'ios') {
+          try {
+            WebBrowser.dismissBrowser();
+          } catch {}
+        }
         createSessionFromUrl(url);
       }
     });
@@ -141,8 +163,9 @@ export default function LoginScreen() {
   const handleOAuthSignIn = async (provider: 'google' | 'apple') => {
     setActiveProvider(provider);
     setErrorMsg('');
+    isHandlingCallbackRef.current = false;
     try {
-      const redirectTo = Linking.createURL('auth/callback');
+      const redirectTo = getOAuthRedirectUrl();
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
@@ -162,7 +185,16 @@ export default function LoginScreen() {
         if (res.type === 'success' && res.url) {
           await createSessionFromUrl(res.url);
         } else {
-          setActiveProvider(null);
+          // On Android/Expo Go, Linking listener or auth/callback.tsx may handle the session
+          const {
+            data: { session },
+          } = await supabase.auth.getSession();
+          if (session?.user) {
+            setActiveProvider(null);
+            await routeAfterAuth(session.user.id);
+          } else {
+            setActiveProvider(null);
+          }
         }
       } else {
         setActiveProvider(null);
@@ -325,6 +357,10 @@ export default function LoginScreen() {
             )}
           </TouchableOpacity>
         </View>
+
+        <Text style={s.debugRedirectText}>
+          Redirect: {getOAuthRedirectUrl()} ({Constants.executionEnvironment}/{String(Constants.appOwnership)})
+        </Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -455,4 +491,10 @@ const s = StyleSheet.create({
     marginTop: Spacing.xs,
   },
   signInBtnText: { color: Colors.accent.copper, fontSize: 15, fontWeight: '800' },
+  debugRedirectText: {
+    color: Colors.text.muted,
+    fontSize: 11,
+    textAlign: 'center',
+    marginTop: 4,
+  },
 });

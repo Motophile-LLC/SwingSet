@@ -16,6 +16,7 @@ export interface UserIdentity {
   displayName: string;
   ssoFullName: string;
   avatarUrl: string;
+  homeCity: string;
   whoYouAre: WhoYouAreType | '';
   gender: GenderType;
   interestedIn: InterestedInType[];
@@ -61,6 +62,7 @@ export interface UserProfileState {
   contactVault: ContactVaultInfo;
   membership: MembershipInfo;
   isOnboardingCompleted: boolean;
+  swingsetOptedIn: boolean;
 }
 
 export interface SupabaseProfileRow {
@@ -80,6 +82,9 @@ export interface SupabaseProfileRow {
   partner_link_code?: string | null;
   linked_partner_code?: string | null;
   onboarding_completed?: boolean | null;
+  home_city?: string | null;
+  swingset_opted_in?: boolean | null;
+  swingset_accepted_at?: string | null;
   subscription_tier?: SubscriptionTier | null;
   subscription_status?: SubscriptionStatus | null;
   can_host_events?: boolean | null;
@@ -108,6 +113,7 @@ interface UserContextType {
   refreshProfileFromSupabase: () => Promise<SupabaseProfileRow | null>;
   generatePartnerCode: () => string;
   completeOnboarding: () => void;
+  acceptSwingSetGate: () => Promise<void>;
   resetOnboarding: () => void;
   lockSession: () => void;
   unlockSession: () => void;
@@ -119,6 +125,7 @@ const initialIdentity: UserIdentity = {
   displayName: '',
   ssoFullName: '',
   avatarUrl: '',
+  homeCity: '',
   whoYouAre: 'single',
   gender: 'man',
   interestedIn: ['everyone'],
@@ -164,6 +171,7 @@ const createInitialProfile = (): UserProfileState => ({
   contactVault: initialContactVault,
   membership: initialMembership,
   isOnboardingCompleted: false,
+  swingsetOptedIn: false,
 });
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -273,6 +281,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
           displayName: row.default_display_name || row.sso_full_name || '',
           ssoFullName: row.sso_full_name || '',
           avatarUrl: row.avatar_url || '',
+          homeCity: row.home_city || prev.identity.homeCity,
           whoYouAre: (row.bucket_type as WhoYouAreType) || 'single',
           gender: (row.gender as GenderType) || 'man',
           interestedIn: interestedArr,
@@ -308,6 +317,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
           canHostEvents: row.can_host_events ?? true,
         },
         isOnboardingCompleted: isComplete,
+        swingsetOptedIn: Boolean(row.swingset_opted_in) || prev.swingsetOptedIn,
       }));
       setIsSessionLocked(false);
     },
@@ -427,6 +437,30 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsSessionLocked(false);
   }, []);
 
+  const acceptSwingSetGate = useCallback(async () => {
+    setProfile((prev) => ({
+      ...prev,
+      swingsetOptedIn: true,
+    }));
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const uid = session?.user?.id;
+      if (uid) {
+        await supabase
+          .from('profiles')
+          .update({
+            swingset_opted_in: true,
+            swingset_accepted_at: new Date().toISOString(),
+          })
+          .eq('id', uid);
+      }
+    } catch {
+      // Ignore if migration 006 hasn't been applied yet
+    }
+  }, []);
+
   const resetOnboarding = useCallback(() => {
     setProfile(createInitialProfile());
     setIsSessionLocked(false);
@@ -477,6 +511,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         refreshProfileFromSupabase,
         generatePartnerCode,
         completeOnboarding,
+        acceptSwingSetGate,
         resetOnboarding,
         lockSession,
         unlockSession,

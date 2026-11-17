@@ -8,10 +8,16 @@ export interface SkinRoleToken {
   matchesWithId: string; // Complementary target token ID for Hunters
 }
 
+export interface GameHostIntro {
+  readAloudScript: string;
+  howToPlay: string[];
+}
+
 export interface GameSkinDefinition {
   id: GameSkinId;
   name: string;
   tagline: string;
+  hostIntro: GameHostIntro;
   catalystRole: {
     label: string;
     colorHex: string;
@@ -27,6 +33,15 @@ export const GAME_SKINS: Record<GameSkinId, GameSkinDefinition> = {
     id: 'fuse_spark',
     name: 'Fuse & Spark',
     tagline: 'Pass the live fuse before detonation while the room stabilizes circuits.',
+    hostIntro: {
+      readAloudScript:
+        '“Everyone check your phone! A few of you are holding a LIVE FUSE—your job is to pass it off before time runs out by tapping phones or trading your 3-letter code. Everyone else has a colored circuit wire—find your matching partner, tap to lock in, and get ready for a quick icebreaker question!”',
+      howToPlay: [
+        'Live Fuse holders: Find the matching role on your screen and tap/enter their 3-char code to pass the fuse.',
+        'Circuit Hunters: Find someone with your complementary wire (e.g., Blue Coolant ↔ Gold Relay) and tap to pair.',
+        'When the scramble ends, chat with your matched partner using the on-screen Mingle prompt!',
+      ],
+    },
     catalystRole: {
       label: 'LIVE FUSE',
       colorHex: '#DC2626', // Crimson Red
@@ -50,6 +65,15 @@ export const GAME_SKINS: Record<GameSkinId, GameSkinDefinition> = {
     id: 'outbreak',
     name: 'Contagion',
     tagline: 'Patient Zero spreads the spark while guests pair antibodies for immunity.',
+    hostIntro: {
+      readAloudScript:
+        '“Heads up—we have a few PATIENT ZEROS in the room! If you are Patient Zero, you need to pass the contagion to your target before the timer hits zero. Everyone else: check your strain or antidote on your phone, track down your matching half, and tap to achieve immunity!”',
+      howToPlay: [
+        'Patient Zero: Pass the contagion to your assigned target via NFC tap or 3-char code.',
+        'Everyone else: Pair your Strand with its matching Antidote (Alpha or Omega) before the clock runs out.',
+        'Once paired, use the Immunity Mingle prompt on your screen to break the ice.',
+      ],
+    },
     catalystRole: {
       label: 'PATIENT ZERO',
       colorHex: '#EA580C', // Biohazard Orange
@@ -73,6 +97,15 @@ export const GAME_SKINS: Record<GameSkinId, GameSkinDefinition> = {
     id: 'drop_beat',
     name: 'Drop the Beat',
     tagline: 'Offload the overheating mic before the bass drops while guests build a setlist.',
+    hostIntro: {
+      readAloudScript:
+        '“Alright everybody, we’re building a live setlist! A few of you are stuck holding a HOT MIC—hand it off before the beat drops! Everyone else has an instrument or track on their phone—pair up with your matching sound, tap to lock in your duo, and share your music picks!”',
+      howToPlay: [
+        'Hot Mic holders: Pass the mic to your target before the countdown ends.',
+        'Musicians: Pair Deep Bass ↔ Rhythm Drums or Analog Synth ↔ Rare Vinyl.',
+        'When the beat drops, answer the Backstage Mingle prompt with your new partner.',
+      ],
+    },
     catalystRole: {
       label: 'HOT MIC',
       colorHex: '#E11D48', // Rose Neon
@@ -96,6 +129,15 @@ export const GAME_SKINS: Record<GameSkinId, GameSkinDefinition> = {
     id: 'secret_agent',
     name: 'Dead Drop',
     tagline: 'Pass the encrypted briefing before the trace finishes while operatives verify ciphers.',
+    hostIntro: {
+      readAloudScript:
+        '“Agents, your phones just received classified intel. If you’re carrying THE BRIEFING, you need to hand it off before the trace completes! All other operatives: locate your matching cipher partner across the room, tap phones to verify the dead drop, and compare alibis!”',
+      howToPlay: [
+        'Briefing carriers: Hand off the case to your target via NFC tap or 3-char code.',
+        'Operatives: Match Cipher Key ↔ Vault Lock or True North ↔ Ghost Signal.',
+        'After the dead drop, trade answers to the Eyes-Only Mingle prompt.',
+      ],
+    },
     catalystRole: {
       label: 'THE BRIEFING',
       colorHex: '#B91C1C', // Deep Crimson
@@ -119,6 +161,15 @@ export const GAME_SKINS: Record<GameSkinId, GameSkinDefinition> = {
     id: 'cocktail_mixer',
     name: 'Cocktail Mixer',
     tagline: 'Pass the overflowing coupe before it spills while guests pair spirits and mixers.',
+    hostIntro: {
+      readAloudScript:
+        '“Time for Cocktail Mixer! A few lucky guests are holding THE SPILL—pass that overflowing glass off before time’s up! Everyone else has a spirit or mixer on their screen—find your cocktail’s other half, tap to mix the drink, and cheers with the prompt on your phone!”',
+      howToPlay: [
+        'The Spill holders: Hand off the overflowing glass before the timer runs out.',
+        'Mixologists: Pair Aged Bourbon ↔ Aromatic Bitters or Reposado Tequila ↔ Fresh Lime.',
+        'Once mixed, grab a sip and chat through the Cheers Mingle prompt!',
+      ],
+    },
     catalystRole: {
       label: 'THE SPILL',
       colorHex: '#BE123C', // Ruby

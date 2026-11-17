@@ -17,9 +17,12 @@ import {
   ThumbsUp,
   UserX,
 } from 'lucide-react-native';
+import { GAME_SKINS } from '../config/gameSkins';
+import { HostIntroBox } from './HostIntroBox';
 import {
   BlockState,
   EventAttendee,
+  GameSkinId,
   LiveRoundBroadcast,
   TimelineBlock,
 } from '../types/swingset';
@@ -125,6 +128,22 @@ export const HostLiveDashboard: React.FC<HostLiveDashboardProps> = ({
               </Text>
             </View>
           </View>
+
+          {(() => {
+            const skinId = block.config?.skin_id as GameSkinId | undefined;
+            const skin = skinId && GAME_SKINS[skinId] ? GAME_SKINS[skinId] : null;
+            if (!skin || block.state === 'ended' || block.state === 'ended_early' || block.state === 'skipped') {
+              return null;
+            }
+            return (
+              <HostIntroBox
+                gameTitle={skin.name}
+                readAloudScript={skin.hostIntro.readAloudScript}
+                howToPlay={skin.hostIntro.howToPlay}
+                defaultExpanded={false}
+              />
+            );
+          })()}
 
           <View style={styles.rowBtns}>
             {(block.state === 'planned' || block.state === 'announced') && (

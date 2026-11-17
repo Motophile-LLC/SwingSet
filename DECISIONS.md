@@ -5,7 +5,14 @@ This file records important product, UX, and technical decisions so they remain 
 ## Product decisions
 
 ### Product identity
-- **Working name:** SwingSet
+- **Main App Name:** TBD (shifting away from "SwingSet" as the main brand so the app can be marketed broadly for social games, trivia, and local events without swinger-app stigma)
+- **SwingSet (Lifestyle Section):** Reserved as the dedicated, separated **Lifestyle** portion of the app:
+  - Requires an **explicit agreement** confirming the user understands what Lifestyle events are.
+  - Enforces a strict **Code of Conduct** centered on **body positivity, consent, and acceptance of all**.
+  - Keeps Lifestyle connections, personal preferences, and private contact info **isolated** from the general public app.
+  - **Onboarding Split:**
+    - **Initial Mainstream Sign-Up:** Simple and frictionless—auto-populates from Google/Apple SSO (display name, avatar, email) with minimal setup (e.g., confirm nickname & home city for Nearby/Local Rankings) and drops straight into the app.
+    - **SwingSet Gated Onboarding:** The existing multi-step lifestyle onboarding (Partner Linking, Play Style & Boundaries, and Lifestyle Contact Vault fields like SLS/Club accounts) moves **behind the SwingSet gate**, triggered only after accepting the Lifestyle Agreement & Code of Conduct.
 - **Default attendee language:** attendees
 - **Tone:** premium and exclusive
 - **Primary product goal:** encourage people to put phones down and talk
@@ -20,10 +27,38 @@ SwingSet should never feel like:
 
 ### Audience and access
 - Audience includes both hosts and attendees equally
-- App access is invitation-only
-- Guest discovery/search is not allowed
+- App supports both **Public** events (discoverable via **Nearby**) and **Private** events (invitation-only)
+- Guest-to-guest search/discovery is still not allowed (Nearby discovers *events*, not people)
 - Profiles are private
 - Events can support lifestyle-focused or vanilla audiences
+
+### Discovery, visibility, and tiers (Pivot / Expansion)
+- **"Nearby" top-level tab:** Replaces "Venues" as the primary discovery surface so users have a reason to open the app between events and see what public events are happening near them. "Venues" remains as an internal event-planning concept (single-venue and multi-venue routes).
+- **Event Creation Step 1 — Public vs. Private:** The first question in host event creation is whether the event is **Public** (listed in Nearby) or **Private** (invite-only, hidden from Nearby).
+- **Public Event Discovery & Entry:**
+  - Public events in **Nearby** display their **address** so attendees know where to go.
+  - Joining/checking into a public event happens **at the venue via door code or NFC/QR tap** (no pre-approval queue required).
+- **Event Vibe / Community (Lifestyle vs. Vanilla):** Retained for attendee comfort and expectation-setting rather than explicit content. **Lifestyle** events are **visible in Nearby and clearly marked/badged**—just like all events carry clear category/vibe badges—with user filters available to include or exclude any category.
+- **Monetization model:**
+  - **Attendees:** Free to download, browse Nearby, join events, and play. (A future paid attendee tier with extra perks is deferred for later.)
+  - **Hosts:** All hosts pay, structured into **2 host tiers**:
+    - **Tier 1 (Standard Host):** Single-location events only; supports both **Public** and **Private** events; simple event planner (preset templates & standard game sets); solo host (or 1 co-host); basic challenge photos sent to host.
+    - **Tier 2 (Pro / Multi-Location Host):** Multi-location / multi-venue route events (plus single-location); supports both **Public** and **Private** events; advanced event planner (custom timeline blocks, custom prompts/games, saved templates); multiple co-hosts & venue transitions; live downtime photo screensaver/reel + curation.
+- **In-app photo challenges & live downtime feed:**
+  - Attendees can take photos directly through the app (e.g., for photo challenges or game prompts) with a clear one-line camera consent notice (*"Challenge photos go to the host and may appear on the live event screen"*).
+  - Captured photos land in a **Host Inbox** for moderation; the host approves photos to display live on the in-app downtime screensaver/reel (with an optional *Auto-Approve* toggle for casual events).
+  - Hosts retain access to submitted/approved event photos in their host library; attendees do not get a permanent gallery of other guests.
+- **Trivia Module (Local Venue / Vanilla Draw):**
+  - Supports **both** standalone **Trivia Night** events and Trivia rounds inside mixed social events, leveraging the existing live event room & synced phones.
+  - **Team Mode (Captain Consensus):** Teams designate a **Captain**; teammates submit suggested answers on their phones, and the Captain sees the group's answers and locks in the final team answer. Solo/Singles play is also supported.
+  - **Q&A Database & Host Tiers:** Maintain a curated **Trivia Q&A database** organized by **genre** (updated periodically). **Tier 1** hosts pull from this database; **Tier 2** hosts can also write/customize their own preplanned Q&A.
+  - **Point System & Public Rankings:** While pure social icebreakers can stay casual, the broader public app re-introduces a **point system** with **3-tier ranking boards**:
+    - **Event-Level Leaderboard** (live during an event)
+    - **Local-Level Ranking Board** (top players, teams, and high-engagement hosts in a city/area)
+    - **National-Level Ranking Board** (overall top players, teams, and hosts)
+    - Hosts whose events generate high attendance and point scoring naturally rise up the rankings for organic discovery.
+- **Saved / Followed Hosts:**
+  - Attendees can **save/follow favorite hosts** and view their upcoming public events.
 
 ### Event model
 - Events are event-specific
@@ -95,14 +130,14 @@ Co-hosts should be able to run and adjust the event live, including:
   - Skipped
   - Ended Early
 - Recommended transitions include:
-  - Planned → Announced
-  - Announced → Active
-  - Active → Paused
-  - Paused → Active
-  - Active → Ended
-  - Active → Ended Early
-  - Planned → Skipped
-  - Announced → Skipped
+  - Planned â†’ Announced
+  - Announced â†’ Active
+  - Active â†’ Paused
+  - Paused â†’ Active
+  - Active â†’ Ended
+  - Active â†’ Ended Early
+  - Planned â†’ Skipped
+  - Announced â†’ Skipped
 
 ### Host learning loop
 - Hosts can rate games for success / what worked / what did not
@@ -147,8 +182,8 @@ After check-in, attendees enter a host-controlled waiting/ready state where host
 - start the first activity when ready
 
 ## Phase completion notes
-- Phase 0 — Product Rules and Scope has been reviewed, confirmed, and marked Ready for Execution.
-- Phase 2 — Host Event Creation and Management has been reviewed, confirmed, and marked Ready for Execution.
+- Phase 0 â€” Product Rules and Scope has been reviewed, confirmed, and marked Ready for Execution.
+- Phase 2 â€” Host Event Creation and Management has been reviewed, confirmed, and marked Ready for Execution.
 
 ## Current open decision areas
 These are not yet fully resolved and should be worked phase by phase:
@@ -197,7 +232,7 @@ When a new important decision is made, add it here and also update the relevant 
 
 ### Contact Exchange and Privacy Decisions (Phase 6)
 - **Strictly Mutual Exchange:** Contact information is only shared when both parties mutually consent. No in-app messaging.
-- **v1 Supported Contact Fields:** Includes Phone Number, Email, Instagram, **Club accounts**, **SLS**, and **3�4 custom labelled fields** for lifestyle/community apps (Telegram, FetLife, etc.).
+- **v1 Supported Contact Fields:** Includes Phone Number, Email, Instagram, **Club accounts**, **SLS**, and **3–4 custom labelled fields** for lifestyle/community apps (Telegram, FetLife, etc.).
 - **Consent UX ("Request Exchange"):** Initiated from the private **"Taps Tonight"** list; recipient receives an alert with an **Accept / Decline** toggle. Once accepted, permitted contact fields uncloak and remain mutually available.
 - **Profiles & Privacy:** Event-day photo is required at start; profiles go dormant after the event.
 

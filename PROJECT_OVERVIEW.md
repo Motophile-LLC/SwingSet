@@ -4,7 +4,7 @@
 SwingSet
 
 ## Product summary
-SwingSet is a private, invitation-only social interaction app for hosted events. It is designed to help attendees connect in person through guided participation, icebreakers, event-specific games, and privacy-respecting contact exchange.
+SwingSet is a social interaction app for hosted events—supporting both **Public** events discoverable via **Nearby** and **Private** invitation-only events. It is designed to help attendees connect in person through guided participation, icebreakers, event-specific games, and privacy-respecting contact exchange.
 
 The product may support lifestyle/swinger communities, but it must also be adaptable to vanilla or non-lifestyle audiences. The app is not intended to promote sex, hookups, explicit content, or in-app chatting. Its purpose is to create fun, structured, real-world social interaction.
 
@@ -42,10 +42,12 @@ Audience support model:
 - configurable by event type and host needs
 
 ## Access model
-- invitation only
-- no attendee search/discovery
-- private profiles
-- event-specific participation
+- **Nearby** discovery for **Public** events (events-first discovery; category/lifestyle filters hidden by default and opt-in by choice)
+- Invitation-only access for **Private** events
+- No attendee search/discovery
+- Private profiles
+- Event-specific participation
+- Attendees are free; all hosts pay (2 tiers: Tier 1 single-location + simple planner, Tier 2 multi-location + advanced planner; both support Public and Private events)
 
 ## Core product rules already established
 - App name: SwingSet

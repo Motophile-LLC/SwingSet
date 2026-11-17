@@ -324,29 +324,33 @@ export default function ProfileTabScreen() {
             />
           </View>
 
-          <View style={s.vaultFieldRow}>
-            <ShieldCheck size={15} color={Colors.accent.copper} />
-            <TextInput
-              style={s.vaultInput}
-              placeholder="SLS / Lifestyle Handle"
-              placeholderTextColor={Colors.text.muted}
-              value={sls}
-              onChangeText={setSls}
-              autoCapitalize="none"
-            />
-          </View>
+          {profile.swingsetOptedIn ? (
+            <>
+              <View style={s.vaultFieldRow}>
+                <ShieldCheck size={15} color={Colors.accent.copper} />
+                <TextInput
+                  style={s.vaultInput}
+                  placeholder="SLS / Lifestyle Handle"
+                  placeholderTextColor={Colors.text.muted}
+                  value={sls}
+                  onChangeText={setSls}
+                  autoCapitalize="none"
+                />
+              </View>
 
-          <View style={s.vaultFieldRow}>
-            <Crown size={15} color={Colors.accent.copper} />
-            <TextInput
-              style={s.vaultInput}
-              placeholder="Club / Venue Membership Handle"
-              placeholderTextColor={Colors.text.muted}
-              value={clubAccount}
-              onChangeText={setClubAccount}
-              autoCapitalize="none"
-            />
-          </View>
+              <View style={s.vaultFieldRow}>
+                <Crown size={15} color={Colors.accent.copper} />
+                <TextInput
+                  style={s.vaultInput}
+                  placeholder="Club / Venue Membership Handle"
+                  placeholderTextColor={Colors.text.muted}
+                  value={clubAccount}
+                  onChangeText={setClubAccount}
+                  autoCapitalize="none"
+                />
+              </View>
+            </>
+          ) : null}
 
           <TouchableOpacity style={s.saveVaultBtn} onPress={handleSaveContactVault} disabled={syncing}>
             <Save size={15} color="#FFF" />
@@ -411,9 +415,30 @@ export default function ProfileTabScreen() {
           </View>
         </View>
 
-        {/* Partner & Play Mode Card */}
+        {/* SwingSet Lifestyle Gate / Partner & Play Mode Card */}
+        {!profile.swingsetOptedIn ? (
+          <View style={s.card}>
+            <View style={s.rowGap}>
+              <Lock size={16} color={Colors.accent.crimson} />
+              <Text style={s.cardHeader}>SWINGSET (LIFESTYLE SPACE) — LOCKED</Text>
+            </View>
+            <Text style={s.vaultDesc}>
+              SwingSet is our separated Lifestyle section. Partner linking, Lifestyle play boundaries, and community contact fields stay hidden until you accept the SwingSet Code of Conduct.
+            </Text>
+            <TouchableOpacity
+              style={s.saveVaultBtn}
+              onPress={() => router.push('/swingset-gate' as any)}
+            >
+              <ShieldCheck size={15} color="#FFF" />
+              <Text style={s.saveVaultBtnText}>Open SwingSet Gate</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
         <View style={s.card}>
-          <Text style={s.cardHeader}>PARTNER LINK & PLAY MODE</Text>
+          <View style={s.rowBetween}>
+            <Text style={s.cardHeader}>SWINGSET • PARTNER LINK & PLAY MODE</Text>
+            <Text style={[s.statusBadge, s.statusLinked]}>Gate Accepted</Text>
+          </View>
           <View style={s.rowBetween}>
             <Text style={s.cardSubLabel}>Your Random Code:</Text>
             <View style={s.codeGroup}>
@@ -464,6 +489,7 @@ export default function ProfileTabScreen() {
             <Text style={s.valText}>{profile.partner.playStyle}</Text>
           </View>
         </View>
+        )}
 
         {/* Private Matchmaking Card */}
         <View style={s.card}>

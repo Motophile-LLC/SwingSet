@@ -1,17 +1,13 @@
 import React, { useEffect } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { Colors } from '@/constants/theme';
 import { useUser } from '@/context/UserContext';
-import { supabase } from '@/src/lib/supabase';
+import { extractAuthParam, supabase } from '@/src/lib/supabase';
 
-function extractParam(url: string, key: string): string | null {
-  const regex = new RegExp(`[?&#]${key}=([^&#]+)`);
-  const match = url.match(regex);
-  return match ? decodeURIComponent(match[1]) : null;
-}
+WebBrowser.maybeCompleteAuthSession();
 
 export default function AuthCallbackScreen() {
   const router = useRouter();
@@ -23,22 +19,44 @@ export default function AuthCallbackScreen() {
 
     const handleCallback = async () => {
       try {
-        WebBrowser.dismissBrowser();
+        if (Platform.OS === 'ios') {
+          try {
+            WebBrowser.dismissBrowser();
+          } catch {}
+        }
 
-        const targetUrl = url || (await Linking.getInitialURL()) || '';
+        const {
+          data: { session: existingSession },
+        } = await supabase.auth.getSession();
 
-        if (targetUrl) {
-          const accessToken = extractParam(targetUrl, 'access_token');
-          const refreshToken = extractParam(targetUrl, 'refresh_token');
-          const code = extractParam(targetUrl, 'code');
+        if (!existingSession?.user) {
+          const targetUrl =
+            url ||
+            (Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.href : '') ||
+            (await Linking.getInitialURL()) ||
+            '';
 
-          if (accessToken && refreshToken) {
-            await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            });
-          } else if (code) {
-            await supabase.auth.exchangeCodeForSession(code);
+          if (targetUrl) {
+            const errorDescription =
+              extractAuthParam(targetUrl, 'error_description') ||
+              extractAuthParam(targetUrl, 'error');
+            if (errorDescription) {
+              if (active) router.replace('/(auth)/login' as any);
+              return;
+            }
+
+            const accessToken = extractAuthParam(targetUrl, 'access_token');
+            const refreshToken = extractAuthParam(targetUrl, 'refresh_token');
+            const code = extractAuthParam(targetUrl, 'code');
+
+            if (accessToken && refreshToken) {
+              await supabase.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken,
+              });
+            } else if (code) {
+              await supabase.auth.exchangeCodeForSession(code);
+            }
           }
         }
 

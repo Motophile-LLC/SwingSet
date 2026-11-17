@@ -1,25 +1,25 @@
 export const Colors = {
   background: {
-    black: '#0D0D0D',
-    darkSteel: '#1A1D20',
-    card: '#15181B',
-    inputBg: '#131518',
+    black: '#0A0A10',
+    darkSteel: '#12121C',
+    card: '#161622',
+    inputBg: '#0E0E16',
   },
   border: {
-    steelGray: '#2E343B',
-    brushedSteel: '#8E96A0',
+    steelGray: '#262638',
+    brushedSteel: '#5A6BFF',
   },
   accent: {
-    copper: '#C86D51',
-    copperHover: '#D87A5E',
-    crimson: '#D9383A',
-    emerald: '#2EAF7D',
+    copper: '#5A6BFF',
+    copperHover: '#7B89FF',
+    crimson: '#FF5C7A',
+    emerald: '#34D399',
   },
   text: {
     primary: '#FFFFFF',
-    secondary: '#8E96A0',
-    muted: '#5C6470',
-    copper: '#C86D51',
+    secondary: '#A6A6C0',
+    muted: '#6C6C86',
+    copper: '#8290FF',
   },
 };
 

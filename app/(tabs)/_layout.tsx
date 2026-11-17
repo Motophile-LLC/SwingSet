@@ -2,7 +2,7 @@ import { Tabs } from 'expo-router';
 import React from 'react';
 import { Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Zap, BookUser, MapPin, Sliders, User } from 'lucide-react-native';
+import { Zap, BookUser, Compass, Sliders, User } from 'lucide-react-native';
 import { Colors } from '@/constants/theme';
 
 export default function TabsLayout() {
@@ -52,9 +52,9 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="locations"
         options={{
-          title: 'Venues',
-          headerTitle: 'Nashville Excursion Crawl',
-          tabBarIcon: ({ color, size }) => <MapPin color={color} size={size} />,
+          title: 'Nearby',
+          headerTitle: 'Nearby Public Events',
+          tabBarIcon: ({ color, size }) => <Compass color={color} size={size} />,
         }}
       />
       <Tabs.Screen
