@@ -547,28 +547,30 @@ export function TriviaModule({
         <View style={s.card}>
           <Text style={s.sectionLabel}>HOST TRIVIA CONTROLS</Text>
 
-          <HostIntroBox
-            gameTitle={state.playMode === 'teams' ? 'Trivia — Team Mode' : 'Trivia — Solo Mode'}
-            readAloudScript={
-              state.playMode === 'teams'
-                ? '“Welcome to Live Trivia! Form a team and pick one Team Captain to create your team in the app. When a question goes live, everyone on your team taps their suggested answer—your Captain will see all your picks and lock in your team’s official final answer!”'
-                : '“Welcome to Live Trivia! Tonight is Solo Mode—every phone plays for itself. When a question hits your screen, tap your answer before I reveal the correct choice and update the live leaderboard!”'
-            }
-            howToPlay={
-              state.playMode === 'teams'
-                ? [
-                    'One person per table creates the team and automatically becomes Team Captain.',
-                    'Teammates join the team and tap their suggested answer (A/B/C/D) on their own phones.',
-                    'The Captain sees the group’s picks and taps Lock Final Answer before the host reveals.',
-                  ]
-                : [
-                    'Every checked-in attendee answers independently on their own phone.',
-                    'Tap A, B, C, or D while the question is live.',
-                    'Host reveals the answer and awards +100 points per correct response.',
-                  ]
-            }
-            defaultExpanded={true}
-          />
+          {state.phase === 'lobby' && state.roundNumber === 1 ? (
+            <HostIntroBox
+              gameTitle={state.playMode === 'teams' ? 'Trivia — Team Mode' : 'Trivia — Solo Mode'}
+              readAloudScript={
+                state.playMode === 'teams'
+                  ? '“Welcome to Live Trivia! Form a team and pick one Team Captain to create your team in the app. When a question goes live, everyone on your team taps their suggested answer—your Captain will see all your picks and lock in your team’s official final answer!”'
+                  : '“Welcome to Live Trivia! Tonight is Solo Mode—every phone plays for itself. When a question hits your screen, tap your answer before I reveal the correct choice and update the live leaderboard!”'
+              }
+              howToPlay={
+                state.playMode === 'teams'
+                  ? [
+                      'One person per table creates the team and automatically becomes Team Captain.',
+                      'Teammates join the team and tap their suggested answer (A/B/C/D) on their own phones.',
+                      'The Captain sees the group’s picks and taps Lock Final Answer before the host reveals.',
+                    ]
+                  : [
+                      'Every checked-in attendee answers independently on their own phone.',
+                      'Tap A, B, C, or D while the question is live.',
+                      'Host reveals the answer and awards +100 points per correct response.',
+                    ]
+              }
+              defaultExpanded={true}
+            />
+          ) : null}
 
           <View style={s.rowGap}>
             <TouchableOpacity
@@ -952,38 +954,46 @@ export function TriviaModule({
             </View>
           ) : null}
         </View>
-      ) : (
+      ) : state.phase !== 'round_complete' ? (
         <View style={s.waitingCard}>
           <Trophy size={26} color={Colors.text.copper} />
-          <Text style={s.waitingTitle}>Waiting for Host to Launch Trivia</Text>
-          <Text style={s.waitingSub}>
-            {state.playMode === 'teams'
-              ? 'Join or create your team above before Question 1 starts.'
-              : 'Get ready—every phone plays for itself once Question 1 goes live!'}
+          <Text style={s.waitingTitle}>
+            {state.roundNumber > 1
+              ? 'Waiting for the Next Round'
+              : 'Waiting for Host to Launch Trivia'}
           </Text>
-          <View style={s.attendeeGuide}>
-            <Text style={s.attendeeGuideTitle}>
-              HOW TRIVIA WORKS ({state.playMode === 'teams' ? 'TEAM CAPTAIN MODE' : 'SOLO MODE'})
-            </Text>
-            {(state.playMode === 'teams'
-              ? [
-                  'Pick one person at your table to create the team (they become the Team Captain).',
-                  'Everyone else joins that team and taps their suggested answer on their own phone.',
-                  'The Captain sees all teammate picks and locks in the team’s final answer before reveal.',
-                ]
-              : [
-                  'Wait for the host to push each question live to your phone.',
-                  'Tap A, B, C, or D before the host reveals the answer.',
-                  'Earn +100 points per correct answer and climb the live leaderboard!',
-                ]
-            ).map((step, i) => (
-              <Text key={i} style={s.attendeeGuideStep}>
-                {i + 1}. {step}
+          <Text style={s.waitingSub}>
+            {state.roundNumber > 1
+              ? 'Hang tight—the host will start the next round shortly.'
+              : state.playMode === 'teams'
+              ? 'Join or create your team above before Round 1 starts.'
+              : 'Get ready—every phone plays for itself once Round 1 goes live!'}
+          </Text>
+          {state.roundNumber === 1 ? (
+            <View style={s.attendeeGuide}>
+              <Text style={s.attendeeGuideTitle}>
+                HOW TRIVIA WORKS ({state.playMode === 'teams' ? 'TEAM CAPTAIN MODE' : 'SOLO MODE'})
               </Text>
-            ))}
-          </View>
+              {(state.playMode === 'teams'
+                ? [
+                    'Pick one person at your table to create the team (they become the Team Captain).',
+                    'Everyone else joins that team and taps their suggested answer on their own phone.',
+                    'The Captain sees all teammate picks and locks in the team’s final answer before reveal.',
+                  ]
+                : [
+                    'Wait for the host to push each question live to your phone.',
+                    'Tap A, B, C, or D before the host reveals the answer.',
+                    'Earn +100 points per correct answer and climb the live leaderboard!',
+                  ]
+              ).map((step, i) => (
+                <Text key={i} style={s.attendeeGuideStep}>
+                  {i + 1}. {step}
+                </Text>
+              ))}
+            </View>
+          ) : null}
         </View>
-      )}
+      ) : null}
 
       {/* Live Leaderboard */}
       {leaderboard.length > 0 ? (
